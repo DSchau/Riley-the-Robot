@@ -1,5 +1,7 @@
 ## Riley the Robot
 
+![Riley the Robot, Cover](./images/00-cover.png)
+
 A children's book about a few life lessons.
 
 ## Usage
