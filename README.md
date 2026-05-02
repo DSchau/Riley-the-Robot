@@ -1,6 +1,6 @@
 ## Riley the Robot
 
-![Riley the Robot, Cover](./images/000-cover.jpg)
+![Riley the Robot, Cover](./images/cover-front.jpg)
 
 A children's book about a few life lessons.
 
