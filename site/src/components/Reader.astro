@@ -1,0 +1,667 @@
+---
+// Full-screen flip-book. Opened by any element with [data-open-book="en|es"],
+// or by visiting #read (English) / #leer (Spanish), optionally with /<spread>.
+import { editions } from '../data/editions';
+---
+
+<div class="reader" role="dialog" aria-modal="true" aria-label="Read Riley the Robot" hidden>
+  <header class="reader-bar">
+    <div class="editions" role="radiogroup" aria-label="Edition">
+      {
+        editions.map((e) => (
+          <button role="radio" data-edition={e.id} aria-checked="false" lang={e.lang}>
+            {e.label}
+          </button>
+        ))
+      }
+    </div>
+    <p class="reader-title"></p>
+    <button class="icon-btn close" aria-label="Close book">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
+        ><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg
+      >
+    </button>
+  </header>
+
+  <div class="stage">
+    <div class="flipbook at-front" aria-live="polite"></div>
+  </div>
+
+  <footer class="reader-controls">
+    <button class="icon-btn prev" aria-label="Previous page">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
+        ><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg
+      >
+    </button>
+    <div class="scrub">
+      <input type="range" min="0" value="0" step="1" aria-label="Jump to page" />
+      <p class="page-label">Cover</p>
+    </div>
+    <button class="icon-btn next" aria-label="Next page">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
+        ><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg
+      >
+    </button>
+  </footer>
+  <p class="rotate-hint">Turn your phone sideways for a bigger book</p>
+</div>
+
+<script>
+  import { editions, type Edition } from '../data/editions';
+
+  type Face = { kind: 'cover' | 'back' | 'end' } | { kind: 'page'; page: number };
+
+  const FLIP_MS = 900;
+  const STAGGER_MS = 70;
+
+  const reader = document.querySelector<HTMLElement>('.reader')!;
+  const stage = reader.querySelector<HTMLElement>('.stage')!;
+  const book = reader.querySelector<HTMLElement>('.flipbook')!;
+  const title = reader.querySelector<HTMLElement>('.reader-title')!;
+  const range = reader.querySelector<HTMLInputElement>('input[type=range]')!;
+  const label = reader.querySelector<HTMLElement>('.page-label')!;
+  const prevBtn = reader.querySelector<HTMLButtonElement>('.prev')!;
+  const nextBtn = reader.querySelector<HTMLButtonElement>('.next')!;
+  const closeBtn = reader.querySelector<HTMLButtonElement>('.close')!;
+  const editionBtns = reader.querySelectorAll<HTMLButtonElement>('[data-edition]');
+
+  let edition: Edition = editions[0];
+  let faces: Face[] = [];
+  let leaves: HTMLElement[] = [];
+  let current = 0; // number of leaves turned
+  let inFlight = 0;
+  let returnFocus: HTMLElement | null = null;
+  let pushedHistory = false;
+
+  function facesFor(e: Edition): Face[] {
+    const list: Face[] = [{ kind: 'cover' }, { kind: 'end' }];
+    for (let p = 1; p <= e.pages; p++) list.push({ kind: 'page', page: p });
+    list.push({ kind: 'end' });
+    // The back cover has to land on the reverse of the final leaf.
+    if (list.length % 2 === 0) list.push({ kind: 'end' });
+    list.push({ kind: 'back' });
+    return list;
+  }
+
+  function faceSrc(face: Face): string | null {
+    const base = `/book/${edition.id}`;
+    if (face.kind === 'cover') return `${base}/cover.webp`;
+    if (face.kind === 'back') return `${base}/back.webp`;
+    if (face.kind === 'page') return `${base}/${String(face.page).padStart(2, '0')}.webp`;
+    return null;
+  }
+
+  function faceEl(face: Face, side: 'front' | 'back'): HTMLElement {
+    const el = document.createElement('div');
+    el.className = `face ${side} ${face.kind}`;
+    const src = faceSrc(face);
+    if (src) {
+      const img = document.createElement('img');
+      img.dataset.src = src;
+      img.alt = face.kind === 'page' ? `Page ${face.page}` : face.kind === 'cover' ? `${edition.title} cover` : 'Back cover';
+      img.decoding = 'async';
+      img.draggable = false;
+      el.append(img);
+    }
+    return el;
+  }
+
+  function build(e: Edition) {
+    edition = e;
+    faces = facesFor(e);
+    book.replaceChildren();
+    leaves = [];
+    for (let i = 0; i < faces.length; i += 2) {
+      const leaf = document.createElement('div');
+      leaf.className = 'leaf';
+      if (i === 0) leaf.classList.add('hard-front');
+      if (i === faces.length - 2) leaf.classList.add('hard-back');
+      leaf.append(faceEl(faces[i], 'front'), faceEl(faces[i + 1], 'back'));
+      leaves.push(leaf);
+      book.append(leaf);
+    }
+    current = Math.min(current, leaves.length);
+    leaves.forEach((leaf, i) => {
+      leaf.classList.toggle('flipped', i < current);
+      restZ(i);
+    });
+    book.lang = e.lang;
+    title.textContent = e.title;
+    range.max = String(leaves.length);
+    for (const btn of editionBtns) btn.setAttribute('aria-checked', String(btn.dataset.edition === e.id));
+    update();
+  }
+
+  function restZ(i: number) {
+    const leaf = leaves[i];
+    leaf.style.zIndex = String(leaf.classList.contains('flipped') ? i + 1 : leaves.length - i);
+  }
+
+  function turn(i: number, flip: boolean, delay: number) {
+    const leaf = leaves[i];
+    window.setTimeout(() => {
+      leaf.style.zIndex = String(1000 + ++inFlight);
+      leaf.classList.toggle('flipped', flip);
+      window.clearTimeout(Number(leaf.dataset.timer));
+      leaf.dataset.timer = String(window.setTimeout(() => restZ(i), FLIP_MS));
+    }, delay);
+  }
+
+  function goTo(target: number) {
+    target = Math.max(0, Math.min(leaves.length, target));
+    let step = 0;
+    while (current !== target) {
+      if (target > current) turn(current++, true, step * STAGGER_MS);
+      else turn(--current, false, step * STAGGER_MS);
+      step++;
+    }
+    update();
+  }
+
+  function hydrate() {
+    for (let i = Math.max(0, current - 2); i < Math.min(leaves.length, current + 3); i++) {
+      for (const img of leaves[i].querySelectorAll<HTMLImageElement>('img[data-src]')) {
+        img.src = img.dataset.src!;
+        img.removeAttribute('data-src');
+      }
+    }
+  }
+
+  function pageOf(faceIndex: number): number | null {
+    const face = faces[faceIndex];
+    return face && face.kind === 'page' ? face.page : null;
+  }
+
+  function describe(): string {
+    if (current === 0) return 'Cover';
+    if (current === leaves.length) return 'Back cover';
+    const pages = [pageOf(current * 2 - 1), pageOf(current * 2)].filter((p): p is number => p !== null);
+    if (pages.length === 0) return 'Endpapers';
+    const of = ` of ${edition.pages}`;
+    return pages.length === 2 ? `Pages ${pages[0]}–${pages[1]}${of}` : `Page ${pages[0]}${of}`;
+  }
+
+  function update() {
+    book.classList.toggle('at-front', current === 0);
+    book.classList.toggle('at-back', current === leaves.length);
+    range.value = String(current);
+    range.style.setProperty('--progress', `${(current / leaves.length) * 100}%`);
+    label.textContent = describe();
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === leaves.length;
+    hydrate();
+    if (!reader.hidden) history.replaceState(history.state, '', `#${hashBase()}${current ? `/${current}` : ''}`);
+  }
+
+  const hashBase = () => (edition.id === 'es' ? 'leer' : 'read');
+
+  // Start the reader's cover exactly over `from` and let it glide into place.
+  function flyFrom(from: HTMLElement) {
+    const target = leaves[0].querySelector('.face')!.getBoundingClientRect();
+    const start = from.getBoundingClientRect();
+    const s = start.height / target.height;
+    const dx = start.left + start.width / 2 - (target.left + target.width / 2);
+    const dy = start.top + start.height / 2 - (target.top + target.height / 2);
+    stage.style.transition = 'none';
+    stage.style.transformOrigin = `${target.left + target.width / 2}px ${target.top + target.height / 2}px`;
+    stage.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
+    stage.getBoundingClientRect();
+    stage.style.transition = '';
+    stage.style.transform = '';
+  }
+
+  function open(id: Edition['id'], spread?: number, viaHash = false, from?: HTMLElement) {
+    const e = editions.find((x) => x.id === id) ?? editions[0];
+    returnFocus = document.activeElement as HTMLElement | null;
+    current = 0;
+    book.classList.add('instant');
+    build(e);
+    reader.hidden = false;
+    book.getBoundingClientRect();
+    book.classList.remove('instant');
+    document.body.classList.add('reader-open');
+    if (from) flyFrom(from);
+    requestAnimationFrame(() => reader.classList.add('visible'));
+    if (!viaHash) {
+      history.pushState({ reader: true }, '', `#${hashBase()}`);
+      pushedHistory = true;
+    }
+    closeBtn.focus({ preventScroll: true });
+    // Let the closed cover settle in before swinging it open.
+    window.setTimeout(() => goTo(spread ?? 1), spread ? 0 : 650);
+  }
+
+  function close(fromPopstate = false) {
+    if (reader.hidden) return;
+    reader.classList.add('closing');
+    document.body.classList.remove('reader-open');
+    window.setTimeout(() => {
+      reader.hidden = true;
+      reader.classList.remove('visible', 'closing');
+      document.querySelectorAll('.book3d-scene.opening').forEach((el) => el.classList.remove('opening'));
+    }, 320);
+    if (!fromPopstate) {
+      if (pushedHistory) history.back();
+      else history.replaceState(null, '', location.pathname + location.search);
+    }
+    pushedHistory = false;
+    returnFocus?.focus({ preventScroll: true });
+  }
+
+  // Openers
+  document.addEventListener('click', (ev) => {
+    const trigger = (ev.target as HTMLElement).closest<HTMLElement>('[data-open-book]');
+    if (!trigger) return;
+    ev.preventDefault();
+    const id = trigger.dataset.openBook as Edition['id'];
+    if (trigger.classList.contains('book3d-scene')) {
+      const inner = trigger.querySelector<HTMLElement>('.book3d');
+      inner?.style.removeProperty('--ry');
+      inner?.style.removeProperty('--rx');
+      trigger.classList.add('opening');
+      window.setTimeout(() => open(id, undefined, false, trigger.querySelector<HTMLElement>('.front') ?? undefined), 380);
+    } else {
+      open(id);
+    }
+  });
+
+  function fromHash(): { id: Edition['id']; spread?: number } | null {
+    const m = location.hash.match(/^#(read|leer)(?:\/(\d+))?$/);
+    if (!m) return null;
+    return { id: m[1] === 'leer' ? 'es' : 'en', spread: m[2] ? Number(m[2]) : undefined };
+  }
+
+  window.addEventListener('popstate', () => {
+    if (!fromHash()) close(true);
+  });
+
+  const initial = fromHash();
+  if (initial) open(initial.id, initial.spread, true);
+
+  // Controls
+  prevBtn.addEventListener('click', () => goTo(current - 1));
+  nextBtn.addEventListener('click', () => goTo(current + 1));
+  closeBtn.addEventListener('click', () => close());
+  range.addEventListener('input', () => goTo(Number(range.value)));
+  for (const btn of editionBtns) {
+    btn.addEventListener('click', () => {
+      const e = editions.find((x) => x.id === btn.dataset.edition);
+      if (e && e !== edition) build(e);
+    });
+  }
+
+  reader.addEventListener('keydown', (ev) => {
+    if (ev.target === range && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')) return;
+    if (ev.key === 'Escape') close();
+    else if (ev.key === 'ArrowRight' || ev.key === 'PageDown' || ev.key === ' ') goTo(current + 1);
+    else if (ev.key === 'ArrowLeft' || ev.key === 'PageUp') goTo(current - 1);
+    else if (ev.key === 'Home') goTo(0);
+    else if (ev.key === 'End') goTo(leaves.length);
+    else return;
+    ev.preventDefault();
+  });
+
+  // Keep focus inside the dialog.
+  reader.addEventListener('focusout', (ev) => {
+    if (!reader.hidden && !reader.contains(ev.relatedTarget as Node | null) && ev.relatedTarget) closeBtn.focus();
+  });
+
+  // Tap a page to turn it; swipe to turn as well.
+  let downX = 0;
+  let downY = 0;
+  book.addEventListener('pointerdown', (ev) => {
+    downX = ev.clientX;
+    downY = ev.clientY;
+  });
+  book.addEventListener('pointerup', (ev) => {
+    const dx = ev.clientX - downX;
+    const dy = ev.clientY - downY;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+      goTo(current + (dx < 0 ? 1 : -1));
+      return;
+    }
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) return;
+    if (current === 0) return goTo(1);
+    if (current === leaves.length) return goTo(current - 1);
+    const r = book.getBoundingClientRect();
+    goTo(current + (ev.clientX > r.left + r.width / 2 ? 1 : -1));
+  });
+</script>
+
+<style is:global>
+  .reader {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    color: var(--ink);
+    transition: opacity 0.3s ease;
+  }
+
+  /* Backdrop and chrome fade in; the book itself stays solid so it can fly in. */
+  .reader::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(120% 80% at 50% 40%, rgb(40 64 130 / 0.55), transparent 70%),
+      rgb(6 11 28 / 0.985);
+  }
+
+  .reader::before,
+  .reader-bar,
+  .reader-controls {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .reader.visible::before,
+  .reader.visible .reader-bar,
+  .reader.visible .reader-controls {
+    opacity: 1;
+  }
+
+  .reader.closing {
+    opacity: 0;
+  }
+
+  body.reader-open .book3d-scene.opening {
+    visibility: hidden;
+  }
+
+  .reader[hidden] {
+    display: none;
+  }
+
+  .reader-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px var(--gutter);
+  }
+
+  .reader-title {
+    font: 600 1.05rem var(--font-display);
+    letter-spacing: 0.02em;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .editions {
+    justify-self: start;
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.07);
+  }
+
+  .editions button {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.4em 0.9em;
+    background: none;
+    color: var(--ink-soft);
+    font: 500 0.85rem var(--font-display);
+    cursor: pointer;
+  }
+
+  .editions button[aria-checked='true'] {
+    background: var(--ink);
+    color: var(--night);
+  }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.08);
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      opacity 0.2s;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.16);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .reader-bar .close {
+    justify-self: end;
+  }
+
+  .stage {
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .flipbook {
+    --ph: min(calc(100dvh - 180px), calc((100vw - 2 * var(--gutter)) / 2 / 0.705), 960px);
+    --pw: calc(var(--ph) * 0.705);
+    --shift: 0px;
+    position: relative;
+    width: calc(var(--pw) * 2);
+    height: var(--ph);
+    perspective: calc(var(--pw) * 5);
+    transform: translateX(var(--shift));
+    transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-y;
+    cursor: pointer;
+  }
+
+  .flipbook.instant,
+  .flipbook.instant .leaf {
+    transition: none;
+  }
+
+  .flipbook.at-front {
+    --shift: calc(var(--pw) / -2);
+  }
+
+  .flipbook.at-back {
+    --shift: calc(var(--pw) / 2);
+  }
+
+  .leaf {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 50%;
+    height: 100%;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    transition: transform 0.9s cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+
+  .leaf.flipped {
+    transform: rotateY(-180deg);
+  }
+
+  .leaf .face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    background: #fbf8f2;
+    box-shadow: 0 18px 40px -26px rgb(0 0 0 / 0.6);
+  }
+
+  .leaf .face.back {
+    transform: rotateY(180deg);
+  }
+
+  .leaf .face img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+  }
+
+  /* Gutter shading where pages curve into the binding */
+  .leaf .face::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .leaf .face.front::after {
+    background: linear-gradient(90deg, rgb(0 0 0 / 0.26), rgb(0 0 0 / 0.08) 3%, rgb(0 0 0 / 0.03) 8%, transparent 14%);
+  }
+
+  .leaf .face.back::after {
+    background: linear-gradient(270deg, rgb(0 0 0 / 0.26), rgb(0 0 0 / 0.08) 3%, rgb(0 0 0 / 0.03) 8%, transparent 14%);
+  }
+
+  .leaf .face.end {
+    background: #f6efe2 url('/art/riley-pattern.webp') center / 55% repeat;
+  }
+
+  .leaf .face.end::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgb(246 239 226 / 0.35);
+  }
+
+  .leaf.hard-front .face.front,
+  .leaf.hard-back .face.back {
+    background: var(--night-2);
+  }
+
+  .leaf.hard-front .face.front {
+    border-radius: 2px 6px 6px 2px;
+  }
+
+  .leaf.hard-back .face.back {
+    border-radius: 6px 2px 2px 6px;
+  }
+
+  .leaf.hard-front .face.front::after {
+    background: linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.35) 0,
+      rgb(255 255 255 / 0.16) 1.2%,
+      rgb(0 0 0 / 0.22) 3.4%,
+      transparent 6%
+    );
+  }
+
+  .leaf.hard-back .face.back::after {
+    background: linear-gradient(270deg, rgb(0 0 0 / 0.35) 0, rgb(0 0 0 / 0.15) 2%, transparent 5%);
+  }
+
+  .reader-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 3vw, 28px);
+    padding: 10px var(--gutter) max(16px, env(safe-area-inset-bottom));
+  }
+
+  .scrub {
+    flex: 0 1 420px;
+    display: grid;
+    gap: 6px;
+    text-align: center;
+  }
+
+  .scrub input {
+    --progress: 0%;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--ember) var(--progress), rgb(255 255 255 / 0.14) var(--progress));
+    cursor: pointer;
+  }
+
+  .scrub input::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
+  }
+
+  .scrub input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+
+  .page-label {
+    font: 500 0.85rem var(--font-display);
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rotate-hint {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .reader-title {
+      display: none;
+    }
+    .reader-bar {
+      grid-template-columns: 1fr auto;
+    }
+  }
+
+  @media (orientation: portrait) and (max-width: 640px) {
+    .rotate-hint {
+      display: block;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(110px + env(safe-area-inset-bottom));
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--ink-faint);
+    }
+  }
+
+  @media (max-height: 500px) {
+    .flipbook {
+      --ph: min(calc(100dvh - 140px), calc((100vw - 2 * var(--gutter)) / 2 / 0.705));
+    }
+    .reader-bar,
+    .reader-controls {
+      padding-block: 6px;
+    }
+    .scrub {
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 14px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .leaf,
+    .flipbook {
+      transition-duration: 0.01ms;
+    }
+  }
+</style>

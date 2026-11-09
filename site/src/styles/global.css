@@ -1,0 +1,152 @@
+:root {
+  --night: #0a1430;
+  --night-2: #12214a;
+  --night-3: #1b2f63;
+  --ink: #eef2ff;
+  --ink-soft: #b8c3e6;
+  --ink-faint: #7f8bb3;
+  --cream: #f8f2e7;
+  --cream-2: #efe5d2;
+  --paper-ink: #1d2240;
+  --paper-soft: #5a5f7d;
+  --ember: #ff7a3d;
+  --ember-2: #ffa36e;
+  --glow: #7fd8ff;
+
+  --font-display: 'Fredoka', ui-rounded, system-ui, sans-serif;
+  --font-body: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1180px;
+  --radius: 18px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.reader-open {
+  overflow: hidden;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.wrap {
+  width: 100%;
+  max-width: var(--max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ember-2);
+}
+
+.btn {
+  --bg: var(--ember);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85em 1.4em;
+  background: var(--bg);
+  color: #1a0e05;
+  font: 600 1rem/1 var(--font-display);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 10px 30px -10px rgb(255 122 61 / 0.7);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px -12px rgb(255 122 61 / 0.85);
+}
+
+.btn.ghost {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.22);
+}
+
+.btn.ghost:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+:focus-visible {
+  outline: 3px solid var(--glow);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

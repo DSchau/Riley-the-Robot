@@ -1,0 +1,241 @@
+---
+// A closed hardcover rendered as a CSS box. Tilts toward the pointer and opens
+// the reader when clicked (see Reader.astro, which listens for [data-open-book]).
+interface Props {
+  edition?: 'en' | 'es';
+  title: string;
+}
+const { edition = 'en', title } = Astro.props;
+const base = `/book/${edition}`;
+---
+
+<button class="book3d-scene" data-open-book={edition} aria-label={`Open ${title} and read it`}>
+  <div class="book3d">
+    <div class="face front">
+      <img src={`${base}/cover.webp`} alt={`${title} front cover`} width="987" height="1400" fetchpriority="high" />
+      <span class="sheen"></span>
+    </div>
+    <div class="face back"><img src={`${base}/back.webp`} alt="" loading="lazy" /></div>
+    <div class="face spine"><img src={`${base}/spine.webp`} alt="" /></div>
+    <div class="face edge right"></div>
+    <div class="face edge top"></div>
+    <div class="face edge bottom"></div>
+  </div>
+  <span class="book3d-shadow"></span>
+  <span class="book3d-hint">Click to open</span>
+</button>
+
+<style>
+  .book3d-scene {
+    --h: min(64vh, 560px, 70vw * 1.418);
+    --w: calc(var(--h) * 0.705);
+    --d: calc(var(--h) * 0.06);
+    --ry: -24deg;
+    --rx: 6deg;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: calc(var(--w) * 1.25);
+    height: calc(var(--h) * 1.15);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    perspective: 1800px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .book3d {
+    position: relative;
+    width: var(--w);
+    height: var(--h);
+    transform-style: preserve-3d;
+    transform: rotateX(var(--rx)) rotateY(var(--ry));
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+    animation: float 7s ease-in-out infinite;
+  }
+
+  .book3d-scene:hover .book3d,
+  .book3d-scene:focus-visible .book3d {
+    --ry: -10deg;
+  }
+
+  .book3d-scene.opening .book3d {
+    --ry: 0deg;
+    --rx: 0deg;
+    transition-duration: 0.45s;
+  }
+
+  .face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+  }
+
+  .face img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .front {
+    transform: translateZ(calc(var(--d) / 2));
+    border-radius: 2px 6px 6px 2px;
+    overflow: hidden;
+    box-shadow: inset 4px 0 6px -3px rgb(0 0 0 / 0.5);
+  }
+
+  /* Hinge groove and a light sweep across the board */
+  .front::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.35) 0,
+      rgb(255 255 255 / 0.18) 1.2%,
+      rgb(0 0 0 / 0.25) 3.4%,
+      transparent 6%
+    );
+  }
+
+  .sheen {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(
+      115deg,
+      transparent 30%,
+      rgb(255 255 255 / 0.14) 45%,
+      transparent 60%
+    );
+    background-size: 250% 100%;
+    background-position: 100% 0;
+    transition: background-position 0.9s ease;
+  }
+
+  .book3d-scene:hover .sheen {
+    background-position: 0 0;
+  }
+
+  .back {
+    transform: rotateY(180deg) translateZ(calc(var(--d) / 2));
+    border-radius: 6px 2px 2px 6px;
+    overflow: hidden;
+  }
+
+  .spine {
+    width: var(--d);
+    left: calc(50% - var(--d) / 2);
+    transform: rotateY(-90deg) translateZ(calc(var(--w) / 2));
+    background: #0b1530;
+  }
+
+  .spine img {
+    object-fit: fill;
+    filter: brightness(0.85);
+  }
+
+  .edge {
+    background: repeating-linear-gradient(90deg, #f3ecdf 0 2px, #d9cfbd 2px 3px);
+  }
+
+  .edge.right {
+    width: var(--d);
+    left: calc(50% - var(--d) / 2);
+    inset-block: 4px;
+    transform: rotateY(90deg) translateZ(calc(var(--w) / 2 - 4px));
+  }
+
+  .edge.top,
+  .edge.bottom {
+    height: var(--d);
+    top: calc(50% - var(--d) / 2);
+    inset-inline: 2px 4px;
+    background: repeating-linear-gradient(0deg, #f3ecdf 0 2px, #d9cfbd 2px 3px);
+  }
+
+  .edge.top {
+    transform: rotateX(90deg) translateZ(calc(var(--h) / 2 - 3px));
+  }
+
+  .edge.bottom {
+    transform: rotateX(-90deg) translateZ(calc(var(--h) / 2 - 3px));
+  }
+
+  .book3d-shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 1%;
+    width: calc(var(--w) * 1.1);
+    height: 28px;
+    translate: -50% 0;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.6), transparent);
+    filter: blur(6px);
+    animation: shadow 7s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .book3d-hint {
+    position: absolute;
+    bottom: -0.4rem;
+    left: 50%;
+    translate: -50% 0;
+    font: 500 0.8rem var(--font-display);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .book3d-scene:hover .book3d-hint,
+  .book3d-scene:focus-visible .book3d-hint {
+    opacity: 1;
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -12px;
+    }
+  }
+
+  @keyframes shadow {
+    0%,
+    100% {
+      scale: 1;
+      opacity: 1;
+    }
+    50% {
+      scale: 0.88;
+      opacity: 0.7;
+    }
+  }
+</style>
+
+<script>
+  // Tilt toward the pointer on devices that hover.
+  const scenes = document.querySelectorAll<HTMLElement>('.book3d-scene');
+  const canHover = matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches;
+  for (const scene of scenes) {
+    const book = scene.querySelector<HTMLElement>('.book3d')!;
+    if (!canHover) continue;
+    scene.addEventListener('pointermove', (e) => {
+      const r = scene.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      book.style.setProperty('--ry', `${-14 + x * 26}deg`);
+      book.style.setProperty('--rx', `${6 - y * 12}deg`);
+    });
+    scene.addEventListener('pointerleave', () => {
+      book.style.removeProperty('--ry');
+      book.style.removeProperty('--rx');
+    });
+  }
+</script>

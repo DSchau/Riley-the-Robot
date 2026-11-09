@@ -1,0 +1,4 @@
+/book/*
+  Cache-Control: public, max-age=31536000, immutable
+/art/*
+  Cache-Control: public, max-age=31536000, immutable

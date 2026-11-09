@@ -1,0 +1,34 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Lost in space — Riley the Robot">
+  <main class="lost">
+    <img src="/art/riley-peek.webp" alt="Riley peeking around a corner" width="800" height="1000" />
+    <h1>This page drifted off to sleep.</h1>
+    <p>Days became months, months became years… and it never came back.</p>
+    <a class="btn" href="/">Back to Riley</a>
+  </main>
+</Layout>
+
+<style>
+  .lost {
+    min-height: 100svh;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 18px;
+    padding: 48px var(--gutter);
+    text-align: center;
+  }
+  img {
+    width: 200px;
+    border-radius: 24px;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+  p {
+    color: var(--ink-soft);
+  }
+</style>

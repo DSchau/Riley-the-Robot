@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rileytherobot",
+  "account_id": "e561ad6bf2d955706042471b92eca665",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  // Static Astro build served from Workers static assets.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "rileytherobot.com", "custom_domain": true },
+    { "pattern": "www.rileytherobot.com", "custom_domain": true }
+  ]
+}

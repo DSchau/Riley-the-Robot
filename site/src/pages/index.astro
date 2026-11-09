@@ -1,0 +1,787 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Book3D from '../components/Book3D.astro';
+import Reader from '../components/Reader.astro';
+
+// Deterministic starfield so builds are stable.
+let seed = 7;
+const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+const stars = Array.from({ length: 140 }, () => ({
+  x: rand() * 100,
+  y: rand() * 100,
+  s: rand() < 0.85 ? 1 + rand() * 1.5 : 2.5 + rand() * 1.5,
+  d: rand() * 6,
+  t: 3 + rand() * 5,
+}));
+
+const reasons = [
+  {
+    n: 'One',
+    title: 'Be good, be kind.',
+    img: '/art/be-kind.webp',
+    alt: 'Riley and a child sharing a toy under a big tree',
+    lines: ['Lend a helping hand. Be there for a friend.', "Don't just ask to help, do and assist.", 'Others may not, but that is why you must insist!'],
+  },
+  {
+    n: 'Two',
+    title: 'Work hard.',
+    img: '/art/work-hard.webp',
+    alt: 'Riley helping load a green garbage truck',
+    lines: ['If you fail, if you fall down,', "if you don't quite hit the mark.", 'You try, and try, and try again once more.'],
+  },
+  {
+    n: 'Three',
+    title: 'Have fun!',
+    img: '/art/have-fun.webp',
+    alt: 'Riley dancing with farm animals under a rainbow',
+    lines: ['An impromptu dance party, but only just one.', 'Good fun is spur of the moment, just because.', 'Smile, be happy, beam ear to ear with glee!'],
+  },
+];
+
+const secrets = [
+  { hex: '49 20 61 6d 20 73 6f 20 6c 75 63 6b 79 20 74 6f 20 62 65 20 79 6f 75 72 20 64 61 64 21', where: 'Hidden on the dedication page' },
+  { hex: '50 65 72 20 61 73 70 65 72 61 20 61 64 20 61 73 74 72 61', where: 'Tucked into the very last page' },
+];
+---
+
+<Layout>
+  <div class="sky" aria-hidden="true">
+    {
+      stars.map((s) => (
+        <span
+          class="star"
+          style={`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;--s:${s.s.toFixed(2)}px;--d:${s.d.toFixed(2)}s;--t:${s.t.toFixed(2)}s`}
+        />
+      ))
+    }
+  </div>
+
+  <header class="site-header wrap">
+    <a href="/" class="logo">Riley <span>the</span> Robot</a>
+    <nav aria-label="Sections">
+      <a href="#story">The story</a>
+      <a href="#reasons">Three reasons</a>
+      <a href="#riley">Meet Riley</a>
+      <a href="#author">Author</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">A picture book by Dustin Schau</p>
+        <h1>Riley <span class="the">the</span> <span class="robot">Robot</span></h1>
+        <p class="lede">
+          A simple but not simplistic tale of a sleepy child and a lonely robot. The robot has a few things to share, so sit
+          down, settle in, and enjoy!
+        </p>
+        <div class="cta">
+          <button class="btn" data-open-book="en">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+              ><path
+                d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5m0-13c2-1.5 5-2 9-1.5v13c-4-.5-7 0-9 1.5m0-13v13"
+                stroke="currentColor"
+                stroke-width="2"
+                fill="none"
+                stroke-linejoin="round"></path></svg
+            >
+            Read the book
+          </button>
+          <button class="btn ghost" data-open-book="es" lang="es">Leer en español</button>
+        </div>
+      </div>
+      <div class="hero-book">
+        <Book3D title="Riley the Robot" />
+      </div>
+    </section>
+
+    <section id="story" class="story">
+      <div class="wrap story-grid">
+        <figure class="spread">
+          <img src="/book/en/04.webp" alt="" width="987" height="1400" loading="lazy" />
+          <img src="/book/en/05.webp" alt="A small robot on a quiet, star-lit planet" width="987" height="1400" loading="lazy" />
+        </figure>
+        <div class="story-copy">
+          <p class="eyebrow">The story</p>
+          <h2>In a galaxy far, far away lives a solitary robot.</h2>
+          <p>
+            Riley is kind, reliable, and resilient, and Riley has been alone for a very long time. So Riley sleeps. Days become
+            months, months become years, and millennia fly by.
+          </p>
+          <p>
+            Then one night a sleepy child drifts off and wakes up somewhere new: twin moons, unfamiliar planets, and a robot
+            who hasn't seen another soul in ages. Riley has much to say and share.
+          </p>
+          <button class="text-link" data-open-book="en">Start reading &rarr;</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="reasons" class="reasons">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Three reasons to be</p>
+          <h2>Three is perfect. Not too many, not too few.</h2>
+          <p>When there were more Rileys, so many more, they had three reasons. Riley still keeps them, and passes them on.</p>
+        </div>
+        <ol class="reason-list">
+          {
+            reasons.map((r) => (
+              <li class="reason">
+                <img src={r.img} alt={r.alt} width="1400" height="675" loading="lazy" />
+                <div class="reason-copy">
+                  <p class="reason-n">Reason {r.n}</p>
+                  <h3>{r.title}</h3>
+                  <blockquote>
+                    {r.lines.map((l) => (
+                      <p>{l}</p>
+                    ))}
+                  </blockquote>
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </section>
+
+    <section id="riley" class="meet wrap">
+      <div class="meet-art">
+        <button class="riley-hello" aria-label="Say hello to Riley">
+          <img src="/art/riley.webp" alt="Riley the Robot, kneeling and smiling" width="753" height="1000" loading="lazy" />
+          <span class="bubble" aria-live="polite">Hello!</span>
+        </button>
+      </div>
+      <div class="meet-copy">
+        <p class="eyebrow">Meet Riley</p>
+        <h2>The kind and reliable robot.</h2>
+        <p>
+          Riley lives on a distant planet, so far far away, and exists for one reason: <em>for you</em>. Riley is a great
+          listener, an even better friend, and knows how to say hello in a lot of languages.
+        </p>
+        <p class="tap-hint">Go on, give Riley a tap.</p>
+      </div>
+    </section>
+
+    <section class="secrets">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">For grown-ups</p>
+          <h2>Riley speaks robot.</h2>
+          <p>Two messages are hidden in the book, written the way a robot might write them. Can you read them?</p>
+        </div>
+        <div class="secret-list">
+          {
+            secrets.map((s) => (
+              <figure class="secret" data-hex={s.hex}>
+                <code>{s.hex}</code>
+                <figcaption>
+                  <span>{s.where}</span>
+                  <button class="decode">Decode</button>
+                </figcaption>
+              </figure>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section id="author" class="author wrap">
+      <img src="/art/author.webp" alt="Dustin Schau outdoors in a redwood forest" width="1200" height="800" loading="lazy" />
+      <div class="author-copy">
+        <p class="eyebrow">About the author</p>
+        <h2>Dustin Schau</h2>
+        <p>
+          Dustin lives in San Francisco with his family. He is really bad at biographies and would not say he loves writing
+          about himself in third-person.
+        </p>
+        <p>He wrote this book for his son, and hopes you love reading it as much as he loved writing it.</p>
+      </div>
+    </section>
+
+    <section class="closing">
+      <img class="closing-riley" src="/art/riley-sketch.webp" alt="" width="667" height="1000" loading="lazy" />
+      <h2>Whenever you return, you and I will become we!</h2>
+      <button class="btn" data-open-book="en">Read it again</button>
+    </section>
+  </main>
+
+  <footer class="site-footer wrap">
+    <p>&copy; 2023 DSchau Publishing &middot; ISBN 979-8-9895683-0-7</p>
+    <p>
+      Illustrated with AI image models and edited in Photoshop. The book's source files are
+      <a href="https://github.com/DSchau/Riley-the-Robot">open on GitHub</a>.
+    </p>
+  </footer>
+
+  <Reader />
+</Layout>
+
+<script>
+  // Riley says hello in a different language with each tap.
+  const greetings = [
+    'Hello!', '¡Hola!', 'Bonjour!', 'Hallo!', 'Ciao!', 'Olá!', 'Hej!', 'Merhaba!', 'Halo!', 'Cześć!', 'Ahoj!', 'Bună!',
+    'Kamusta!', 'こんにちは!', '你好!', 'Привет!', '안녕하세요!', 'नमस्ते!', 'مرحبا!', 'H3L10!',
+  ];
+  const hello = document.querySelector<HTMLButtonElement>('.riley-hello');
+  const bubble = hello?.querySelector<HTMLElement>('.bubble');
+  let g = 0;
+  hello?.addEventListener('click', () => {
+    if (!bubble) return;
+    g = (g + 1) % greetings.length;
+    bubble.textContent = greetings[g];
+    hello.classList.remove('bounce');
+    void hello.offsetWidth;
+    hello.classList.add('bounce');
+  });
+
+  // Hex secrets scramble into plain text.
+  const glyphs = '0123456789abcdef';
+  for (const fig of document.querySelectorAll<HTMLElement>('.secret')) {
+    const btn = fig.querySelector<HTMLButtonElement>('.decode')!;
+    const code = fig.querySelector<HTMLElement>('code')!;
+    const hex = fig.dataset.hex!;
+    const plain = hex
+      .split(' ')
+      .map((h) => String.fromCharCode(parseInt(h, 16)))
+      .join('');
+    let decoded = false;
+    btn.addEventListener('click', () => {
+      decoded = !decoded;
+      btn.textContent = decoded ? 'Show robot' : 'Decode';
+      fig.classList.toggle('decoded', decoded);
+      if (!decoded) {
+        code.textContent = hex;
+        return;
+      }
+      let frame = 0;
+      const total = 18;
+      const tick = () => {
+        frame++;
+        const reveal = Math.floor((frame / total) * plain.length);
+        code.textContent =
+          plain.slice(0, reveal) +
+          Array.from(plain.slice(reveal), (c) => (c === ' ' ? ' ' : glyphs[Math.floor(Math.random() * 16)])).join('');
+        if (frame < total) requestAnimationFrame(tick);
+        else code.textContent = plain;
+      };
+      tick();
+    });
+  }
+</script>
+
+<style>
+  .sky {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 220vh;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 50% at 80% 20%, rgb(64 92 180 / 0.35), transparent 70%),
+      radial-gradient(50% 40% at 10% 60%, rgb(255 122 61 / 0.08), transparent 70%),
+      linear-gradient(var(--night) 0%, var(--night-2) 55%, var(--night) 100%);
+    mask-image: linear-gradient(#000 70%, transparent);
+    z-index: -1;
+  }
+
+  .star {
+    position: absolute;
+    width: var(--s);
+    height: var(--s);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 calc(var(--s) * 3) rgb(180 220 255 / 0.8);
+    animation: twinkle var(--t) ease-in-out var(--d) infinite;
+    opacity: 0.8;
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 0.85;
+    }
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 22px;
+  }
+
+  .logo {
+    font: 700 1.25rem var(--font-display);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+  }
+
+  .logo span {
+    font-weight: 500;
+    color: var(--ink-soft);
+  }
+
+  .site-header nav {
+    display: flex;
+    gap: clamp(14px, 2.5vw, 30px);
+    font: 500 0.95rem var(--font-display);
+  }
+
+  .site-header nav a {
+    text-decoration: none;
+    color: var(--ink-soft);
+    transition: color 0.2s;
+  }
+
+  .site-header nav a:hover {
+    color: var(--ink);
+  }
+
+  @media (max-width: 720px) {
+    .site-header nav {
+      display: none;
+    }
+  }
+
+  /* Hero */
+  .hero {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    align-items: center;
+    gap: 32px;
+    min-height: min(calc(100svh - 90px), 820px);
+    padding-block: 24px 64px;
+  }
+
+  .hero h1 {
+    font-size: clamp(3.2rem, 8vw, 6.4rem);
+    font-weight: 700;
+    line-height: 0.95;
+    margin-block: 14px 22px;
+  }
+
+  .hero h1 .the {
+    display: block;
+    font-size: 0.45em;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-block: 0.1em;
+  }
+
+  .hero h1 .robot {
+    display: block;
+    color: var(--ember);
+    text-shadow: 0 0 40px rgb(255 122 61 / 0.35);
+  }
+
+  .lede {
+    max-width: 30em;
+    font-size: clamp(1.1rem, 1.6vw, 1.25rem);
+    color: var(--ink-soft);
+  }
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 30px;
+  }
+
+  .hero-book {
+    display: grid;
+    place-items: center;
+  }
+
+  @media (max-width: 860px) {
+    .hero {
+      grid-template-columns: 1fr;
+      text-align: center;
+      min-height: 0;
+      padding-top: 8px;
+    }
+    .hero-book {
+      order: -1;
+    }
+    .lede {
+      margin-inline: auto;
+    }
+    .cta {
+      justify-content: center;
+    }
+  }
+
+  /* Story */
+  .story {
+    padding-block: clamp(64px, 10vw, 120px);
+  }
+
+  .story-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: clamp(32px, 5vw, 72px);
+    align-items: center;
+  }
+
+  .spread {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.8);
+    position: relative;
+  }
+
+  .spread::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 44%, rgb(0 0 0 / 0.25) 49.6%, rgb(255 255 255 / 0.06) 50.2%, transparent 56%);
+  }
+
+  .story-copy {
+    display: grid;
+    gap: 18px;
+  }
+
+  .story-copy h2 {
+    font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+  }
+
+  .story-copy p:not(.eyebrow) {
+    color: var(--ink-soft);
+  }
+
+  .text-link {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ember-2);
+    font: 600 1.05rem var(--font-display);
+    cursor: pointer;
+  }
+
+  .text-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  @media (max-width: 860px) {
+    .story-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Reasons */
+  .reasons {
+    background: var(--cream);
+    color: var(--paper-ink);
+    padding-block: clamp(72px, 10vw, 128px);
+    border-radius: 36px 36px 0 0;
+  }
+
+  .reasons .eyebrow {
+    color: #d35a1f;
+  }
+
+  .section-head {
+    max-width: 640px;
+    margin: 0 auto clamp(40px, 6vw, 72px);
+    text-align: center;
+    display: grid;
+    gap: 14px;
+  }
+
+  .section-head h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .reasons .section-head p:not(.eyebrow) {
+    color: var(--paper-soft);
+  }
+
+  .reason-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: clamp(40px, 6vw, 80px);
+  }
+
+  .reason {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: clamp(24px, 4vw, 56px);
+    align-items: center;
+  }
+
+  .reason:nth-child(even) {
+    grid-template-columns: 1fr 1.3fr;
+  }
+
+  .reason:nth-child(even) img {
+    order: 2;
+  }
+
+  .reason img {
+    width: 100%;
+    border-radius: var(--radius);
+    background: #fff;
+    box-shadow: 0 24px 50px -28px rgb(29 34 64 / 0.45);
+  }
+
+  .reason-copy {
+    display: grid;
+    gap: 10px;
+  }
+
+  .reason-n {
+    font: 600 0.85rem var(--font-display);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--paper-soft);
+  }
+
+  .reason h3 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 700;
+  }
+
+  .reason blockquote {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    border-left: 3px solid var(--ember);
+    font-size: 1.1rem;
+    font-style: italic;
+    color: var(--paper-soft);
+  }
+
+  @media (max-width: 760px) {
+    .reason,
+    .reason:nth-child(even) {
+      grid-template-columns: 1fr;
+    }
+    .reason:nth-child(even) img {
+      order: 0;
+    }
+  }
+
+  /* Meet Riley */
+  .meet {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: clamp(24px, 5vw, 72px);
+    align-items: center;
+    padding-block: clamp(72px, 10vw, 128px);
+  }
+
+  .meet-copy {
+    display: grid;
+    gap: 16px;
+  }
+
+  .meet-copy h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .meet-copy p:not(.eyebrow) {
+    color: var(--ink-soft);
+  }
+
+  .tap-hint {
+    font: 500 0.95rem var(--font-display);
+    color: var(--glow) !important;
+  }
+
+  .meet-art {
+    display: grid;
+    place-items: center;
+  }
+
+  .riley-hello {
+    position: relative;
+    width: min(100%, 400px);
+    padding: 0;
+    border: 0;
+    background: radial-gradient(closest-side, rgb(127 216 255 / 0.18), transparent);
+    cursor: pointer;
+  }
+
+  .riley-hello img {
+    filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.5));
+  }
+
+  .riley-hello.bounce img {
+    animation: bounce 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+
+  .bubble {
+    position: absolute;
+    top: 2%;
+    right: -4%;
+    padding: 0.5em 0.9em;
+    border-radius: 18px 18px 18px 4px;
+    background: var(--ink);
+    color: var(--night);
+    font: 600 clamp(1rem, 2.4vw, 1.35rem) var(--font-display);
+    box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.6);
+    white-space: nowrap;
+  }
+
+  @keyframes bounce {
+    0% {
+      transform: translateY(0) scale(1);
+    }
+    40% {
+      transform: translateY(-14px) scale(1.02);
+    }
+    100% {
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .meet {
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
+    .riley-hello {
+      width: min(80%, 320px);
+    }
+    .bubble {
+      right: -8%;
+    }
+  }
+
+  /* Secrets */
+  .secrets {
+    padding-block: clamp(64px, 9vw, 112px);
+    background: linear-gradient(var(--night), var(--night-2));
+  }
+
+  .secrets .section-head p:not(.eyebrow) {
+    color: var(--ink-soft);
+  }
+
+  .secret-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+    gap: 20px;
+  }
+
+  .secret {
+    margin: 0;
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+    border-radius: var(--radius);
+    background: rgb(255 255 255 / 0.04);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  }
+
+  .secret code {
+    font: 500 0.95rem/1.7 ui-monospace, 'SF Mono', Menlo, monospace;
+    color: var(--glow);
+    word-break: break-word;
+    min-height: 3.4em;
+  }
+
+  .secret.decoded code {
+    font: 600 clamp(1.3rem, 2.4vw, 1.6rem)/1.3 var(--font-display);
+    color: var(--ink);
+  }
+
+  .secret figcaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.9rem;
+    color: var(--ink-faint);
+  }
+
+  .decode {
+    flex: none;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.5em 1em;
+    background: rgb(127 216 255 / 0.14);
+    color: var(--glow);
+    font: 600 0.9rem var(--font-display);
+    cursor: pointer;
+  }
+
+  .decode:hover {
+    background: rgb(127 216 255 / 0.24);
+  }
+
+  /* Author */
+  .author {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(24px, 5vw, 64px);
+    align-items: center;
+    padding-block: clamp(72px, 10vw, 128px);
+  }
+
+  .author img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+
+  .author-copy {
+    display: grid;
+    gap: 16px;
+  }
+
+  .author-copy h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .author-copy p:not(.eyebrow) {
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 760px) {
+    .author {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Closing */
+  .closing {
+    display: grid;
+    justify-items: center;
+    gap: 24px;
+    text-align: center;
+    padding: clamp(64px, 9vw, 112px) var(--gutter);
+    background: var(--cream);
+    color: var(--paper-ink);
+  }
+
+  .closing-riley {
+    width: 160px;
+  }
+
+  .closing h2 {
+    max-width: 16em;
+    font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+  }
+
+  .site-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 24px;
+    padding-block: 28px;
+    font-size: 0.9rem;
+    color: var(--ink-faint);
+  }
+</style>

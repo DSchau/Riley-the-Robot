@@ -1,0 +1,22 @@
+{
+  "name": "rileytherobot",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro build && wrangler dev",
+    "deploy": "astro build && wrangler deploy",
+    "assets": "./scripts/build-assets.sh",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^7.4.7"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  }
+}
