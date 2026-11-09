@@ -15,6 +15,9 @@ importers:
       '@fontsource/fredoka':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/montserrat':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/nunito':
         specifier: ^5.3.0
         version: 5.3.0
@@ -435,6 +438,9 @@ packages:
 
   '@fontsource/fredoka@5.3.0':
     resolution: {integrity: sha512-s2IhjQ50wDnKkkaKmjhtL0rxQg6ITsVusiipM3m7zUwVZZbbCKsscNDkngwp28xVzfIt7neWrkgU1qKqyTycQg==}
+
+  '@fontsource/montserrat@5.3.0':
+    resolution: {integrity: sha512-iQPDtZOnmM5ih4JBGaMSXisRap0ixb9bAUw2hDtY7EjVfaqiiNlKtVuJl9XclxUwtwMMHNcWXfQR6zI9x05+Tg==}
 
   '@fontsource/nunito@5.3.0':
     resolution: {integrity: sha512-vw9TaTQJ/zpEpKrsODuPmOvaVjXgdda6B+xXA4YqjrdeJ62MLgVoDerdRXFQHyBnSCt2yQ2nHKCHPP/Pv7Xq4Q==}
@@ -2131,6 +2137,8 @@ snapshots:
     optional: true
 
   '@fontsource/fredoka@5.3.0': {}
+
+  '@fontsource/montserrat@5.3.0': {}
 
   '@fontsource/nunito@5.3.0': {}
 

@@ -95,9 +95,9 @@ function Book(cover: string) {
 }
 
 export const GET: APIRoute = async () => {
-  const [fredoka600, fredoka700, nunito400, cover, riley] = await Promise.all([
+  const [fredoka600, montserrat900, nunito400, cover, riley] = await Promise.all([
     font('fredoka', 'fredoka-latin-600-normal.woff'),
-    font('fredoka', 'fredoka-latin-700-normal.woff'),
+    font('montserrat', 'montserrat-latin-900-normal.woff'),
     font('nunito', 'nunito-latin-400-normal.woff'),
     dataUri('cover.jpg', 'image/jpeg'),
     dataUri('riley.png', 'image/png'),
@@ -146,35 +146,32 @@ export const GET: APIRoute = async () => {
       Book(cover),
       h(
         'div',
-        { style: { display: 'flex', flexDirection: 'column', marginLeft: 76, marginTop: -40 } },
+        { style: { display: 'flex', flexDirection: 'column', marginLeft: 72, marginTop: -60 } },
         h(
           'div',
           { style: { display: 'flex', fontFamily: 'Fredoka', fontWeight: 600, fontSize: 20, letterSpacing: 4, color: '#ffa36e' } },
           'A PICTURE BOOK BY DUSTIN SCHAU',
         ),
+        // One line, lettered like the cover (Gotham Black there, Montserrat Black here)
         h(
           'div',
           {
             style: {
               display: 'flex',
-              flexDirection: 'column',
-              marginTop: 18,
-              fontFamily: 'Fredoka',
-              fontWeight: 700,
-              lineHeight: 0.92,
+              marginTop: 20,
+              fontFamily: 'Montserrat',
+              fontWeight: 900,
+              fontSize: 58,
+              letterSpacing: -0.5,
+              textShadow: '0 3px 0 rgba(0, 0, 0, 0.3)',
             },
           },
-          h('div', { style: { display: 'flex', fontSize: 118 } }, 'Riley'),
-          h('div', { style: { display: 'flex', fontSize: 54, fontWeight: 600, color: '#b8c3e6', marginTop: 4 } }, 'the'),
-          h(
-            'div',
-            { style: { display: 'flex', fontSize: 118, color: '#ff7a3d', textShadow: '0 0 40px rgba(255, 122, 61, 0.45)' } },
-            'Robot',
-          ),
+          'RILEY THE\u00a0',
+          h('span', { style: { color: '#ff7a3d', textShadow: '0 3px 0 rgba(0, 0, 0, 0.3), 0 0 32px rgba(255, 122, 61, 0.5)' } }, 'ROBOT'),
         ),
         h(
           'div',
-          { style: { display: 'flex', width: 360, marginTop: 26, fontSize: 27, lineHeight: 1.4, color: '#b8c3e6' } },
+          { style: { display: 'flex', width: 360, marginTop: 24, fontSize: 27, lineHeight: 1.4, color: '#b8c3e6' } },
           'A sleepy child, a lonely robot, and three reasons to be.',
         ),
         h(
@@ -201,7 +198,7 @@ export const GET: APIRoute = async () => {
     height: HEIGHT,
     fonts: [
       { name: 'Fredoka', data: fredoka600, weight: 600, style: 'normal' },
-      { name: 'Fredoka', data: fredoka700, weight: 700, style: 'normal' },
+      { name: 'Montserrat', data: montserrat900, weight: 900, style: 'normal' },
       { name: 'Nunito', data: nunito400, weight: 400, style: 'normal' },
     ],
   });

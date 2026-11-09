@@ -70,7 +70,7 @@ const secrets = [
     <section class="hero wrap">
       <div class="hero-copy">
         <p class="eyebrow">A picture book by Dustin Schau</p>
-        <h1>Riley <span class="the">the</span> <span class="robot">Robot</span></h1>
+        <h1>Riley the <span class="robot">Robot</span></h1>
         <p class="lede">
           A simple but not simplistic tale of a sleepy child and a lonely robot. The robot has a few things to share, so sit
           down, settle in, and enjoy!
@@ -357,25 +357,28 @@ const secrets = [
     padding-block: 24px 64px;
   }
 
-  .hero h1 {
-    font-size: clamp(3.2rem, 8vw, 6.4rem);
-    font-weight: 700;
-    line-height: 0.95;
-    margin-block: 14px 22px;
+  .hero-copy {
+    container-type: inline-size;
   }
 
-  .hero h1 .the {
-    display: block;
-    font-size: 0.45em;
-    font-weight: 500;
-    color: var(--ink-soft);
-    margin-block: 0.1em;
+  /* Cover lettering: Gotham Black on the book, Montserrat Black here */
+  .hero h1 {
+    font-family: var(--font-title);
+    font-weight: 900;
+    font-size: min(9.2cqi, 4.25rem);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-block: 18px 22px;
+    text-shadow: 0 3px 0 rgb(0 0 0 / 0.25);
   }
 
   .hero h1 .robot {
-    display: block;
     color: var(--ember);
-    text-shadow: 0 0 40px rgb(255 122 61 / 0.35);
+    text-shadow:
+      0 3px 0 rgb(0 0 0 / 0.25),
+      0 0 36px rgb(255 122 61 / 0.4);
   }
 
   .lede {

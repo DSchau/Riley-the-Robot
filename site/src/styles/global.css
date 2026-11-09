@@ -14,6 +14,7 @@
   --glow: #7fd8ff;
 
   --font-display: 'Fredoka', ui-rounded, system-ui, sans-serif;
+  --font-title: 'Montserrat', 'Gotham', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Nunito', ui-sans-serif, system-ui, sans-serif;
 
   --gutter: clamp(16px, 4vw, 48px);
