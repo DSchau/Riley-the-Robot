@@ -17,6 +17,10 @@
     "astro": "^7.4.7"
   },
   "devDependencies": {
+    "@fontsource/fredoka": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "satori": "^0.63.2",
     "wrangler": "^4.158.0"
   }
 }

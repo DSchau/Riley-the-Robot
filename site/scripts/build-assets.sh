@@ -78,6 +78,11 @@ img wrap-up/02-work-hard.png 1400x work-hard
 img wrap-up/03-have-fun.png 1400x have-fun
 img bio.jpg 1200x author
 magick "$ROOT/images/riley.png" -resize 512x512 -background none -gravity center -extent 512x512 "$SITE/public/riley-icon.png"
-magick "$ROOT/images/cover-front.png" -resize 1200x630^ -gravity north -extent 1200x630 -quality 85 "$SITE/public/og.jpg"
+
+# Sources for the build-time OG card (src/pages/og.png.ts); satori can't read webp.
+OG="$SITE/src/assets/og"
+mkdir -p "$OG"
+magick "$ROOT/images/cover-front.png" -resize x900 -quality 86 "$OG/cover.jpg"
+magick "$ROOT/images/riley.png" -resize x520 "$OG/riley.png"
 
 du -sh "$OUT" "$ART"
