@@ -1,0 +1,269 @@
+---
+// Link icons in the Central Icon System's line style (24x24, 2px strokes),
+// with a few parts of our own that only show mid-gesture. At rest an icon is
+// plain ink. Hovering or focusing its link powers it on like Riley's chest
+// light, and it acts out what it stands for: the book tips open and its lines
+// are read, the pencil scribbles a line, the code brackets spring apart.
+//
+// Each part is a named group, so the styles below can move it on its own.
+// Every gesture ends exactly on the resting drawing.
+type Part = { d: string[]; extra?: boolean };
+
+const icons = {
+  book: {
+    cover: {
+      d: [
+        'M7 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3H7C5.89543 3 5 3.89543 5 5V19M7 21C5.89543 21 5 20.1046 5 19M7 21H10M5 19C5 17.8954 5.89543 17 7 17H17C18.1046 17 19 16.1046 19 15V12',
+      ],
+    },
+    line1: { d: ['M9 7H15'] },
+    line2: { d: ['M9 11H12'] },
+    // A star slips out from between the pages.
+    spark: { d: ['M21.5 -0.5V4.5M19 2H24'], extra: true },
+  },
+  pencil: {
+    pencil: {
+      d: [
+        'M18.4142 3.91415L20.0858 5.58573C20.8668 6.36678 20.8668 7.63311 20.0858 8.41416L18 10.4999L7.79289 20.7071C7.60536 20.8946 7.351 20.9999 7.08579 20.9999H3V16.9142C3 16.6489 3.10536 16.3946 3.29289 16.2071L13.5 5.99994L15.5858 3.91416C16.3668 3.13311 17.6332 3.13311 18.4142 3.91415Z',
+        'M13.5 6L18 10.5',
+      ],
+    },
+    // What it writes.
+    squiggle: { d: ['M3.2 22.6c.8-1.5 1.4-1.5 2.2 0s1.4 1.5 2.2 0 1.4-1.5 2.2 0 1.4 1.5 2.2 0'], extra: true },
+  },
+  code: {
+    left: { d: ['M8 7.5L3.5 12L8 16.5'] },
+    right: { d: ['M16 7.5L20.5 12L16 16.5'] },
+    slash: { d: ['M13.75 4.5L10.25 19.5'] },
+  },
+} satisfies Record<string, Record<string, Part>>;
+
+interface Props {
+  name: keyof typeof icons;
+}
+
+const { name } = Astro.props;
+const parts: [string, Part][] = Object.entries(icons[name]);
+---
+
+{/* Decorative: the link's text stays its accessible name. The viewBox is padded so strokes never clip mid-gesture. */}
+<svg class="ico" data-icon={name} viewBox="-2 -2 28 28" aria-hidden="true" focusable="false">
+  {
+    parts.map(([part, { d, extra }]) => (
+      <g data-part={part} class:list={{ 'ico-extra': extra }}>
+        {d.map((path) => (
+          <path d={path} pathLength="1" />
+        ))}
+      </g>
+    ))
+  }
+</svg>
+
+<script>
+  // Lets a gesture play to the end even if the pointer leaves partway through,
+  // so it never snaps back mid-motion. Without this the gestures still play
+  // on hover and focus through CSS alone.
+  function play(event: Event) {
+    const target = event.target as Element | null;
+    const host = target?.closest?.('.ico-host') ?? target?.closest?.('a, button');
+    const icon = host?.querySelector<SVGSVGElement>('svg.ico');
+    if (!icon || 'playing' in icon.dataset) return;
+    icon.dataset.playing = '';
+    Promise.allSettled(icon.getAnimations({ subtree: true }).map((animation) => animation.finished)).then(() => {
+      delete icon.dataset.playing;
+    });
+  }
+  document.addEventListener('pointerover', play);
+  document.addEventListener('focusin', play);
+</script>
+
+<style is:global>
+  .ico {
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* The viewBox is padded by 2 units a side; the negative margins put the
+       24-unit drawing exactly where a 1em icon would sit. */
+    --pad: calc(1em / 12);
+    display: inline-block;
+    flex: none;
+    width: calc(1em + 2 * var(--pad));
+    height: calc(1em + 2 * var(--pad));
+    max-width: none;
+    margin: calc(-1 * var(--pad)) calc(0.4em - var(--pad)) calc(-1 * var(--pad)) calc(-1 * var(--pad));
+    vertical-align: -0.15em;
+    overflow: visible;
+
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition:
+      color 0.3s ease,
+      filter 0.3s ease;
+  }
+
+  .ico [data-part] {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* Only there while its gesture plays. */
+  .ico-extra {
+    stroke: var(--ember-2);
+    opacity: 0;
+  }
+
+  /* Powered on. */
+  :is(a, button, .ico-host):is(:hover, :focus-visible) .ico,
+  .ico-host:focus-within .ico,
+  .ico[data-playing] {
+    color: var(--glow);
+    filter: drop-shadow(0 0 3px rgb(127 216 255 / 0.6));
+  }
+
+  /* Gestures only for a real hover: a tap on a touch screen leaves :hover stuck on. */
+  @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+    /* book: tips back, its lines are read one after the other, and a star slips out */
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='book'] {
+      transform-origin: 50% 90%;
+      animation: ico-tip 620ms var(--ease-spring);
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='book'] [data-part='line1'] {
+      animation: ico-write 300ms var(--ease-out) 140ms backwards;
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='book'] [data-part='line2'] {
+      animation: ico-write 260ms var(--ease-out) 300ms backwards;
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='book'] [data-part='spark'] {
+      animation: ico-spark 760ms var(--ease-out) 240ms;
+    }
+
+    /* pencil: scribbles a line from its tip, then lifts off as the line fades */
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='pencil'] [data-part='pencil'] {
+      transform-origin: left bottom;
+      animation: ico-scribble 1000ms var(--ease-in-out);
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='pencil'] [data-part='squiggle'] {
+      animation: ico-squiggle 1000ms linear;
+    }
+
+    /* code: the brackets spring apart and the slash rocks between them */
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='code'] [data-part='left'] {
+      --dx: -2.2px;
+      animation: ico-part 560ms var(--ease-spring);
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='code'] [data-part='right'] {
+      --dx: 2.2px;
+      animation: ico-part 560ms var(--ease-spring) 60ms;
+    }
+
+    :is(:is(a, button, .ico-host):is(:hover, :focus-visible) .ico, .ico[data-playing])[data-icon='code'] [data-part='slash'] {
+      animation: ico-rock 680ms var(--ease-in-out);
+    }
+  }
+
+  @keyframes ico-tip {
+    35% {
+      transform: translateY(-0.07em) rotate(-10deg);
+    }
+  }
+
+  @keyframes ico-write {
+    from {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes ico-spark {
+    0% {
+      opacity: 0;
+      transform: translate(-3px, 4px) scale(0.2) rotate(-60deg);
+    }
+    35% {
+      opacity: 1;
+      transform: scale(1.15) rotate(0deg);
+    }
+    65% {
+      opacity: 1;
+      transform: scale(0.9) rotate(20deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(1.5px, -1.5px) scale(0.4) rotate(45deg);
+    }
+  }
+
+  @keyframes ico-scribble {
+    0% {
+      transform: none;
+    }
+    10% {
+      transform: translate(0, 1.6px) rotate(-4deg);
+    }
+    24% {
+      transform: translate(2.2px, 0.4px) rotate(-6deg);
+    }
+    38% {
+      transform: translate(4.4px, 1.6px) rotate(-3deg);
+    }
+    52% {
+      transform: translate(6.6px, 0.4px) rotate(-6deg);
+    }
+    66% {
+      transform: translate(8.8px, 1.6px) rotate(-4deg);
+    }
+    100% {
+      transform: none;
+    }
+  }
+
+  @keyframes ico-squiggle {
+    0%,
+    10% {
+      opacity: 1;
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 1;
+    }
+    66% {
+      opacity: 1;
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 0;
+    }
+    100% {
+      opacity: 0;
+      stroke-dasharray: 1 2;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes ico-part {
+    40% {
+      transform: translateX(var(--dx));
+    }
+  }
+
+  @keyframes ico-rock {
+    25% {
+      transform: rotate(-16deg);
+    }
+    55% {
+      transform: rotate(10deg);
+    }
+    80% {
+      transform: rotate(-4deg);
+    }
+  }
+</style>

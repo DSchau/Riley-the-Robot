@@ -5,19 +5,61 @@
 //
 // The "Read the book" buttons rely on <Reader />, which listens for
 // [data-open-book] anywhere on the page.
+import Icon from './Icon.astro';
 
 // Deterministic, so builds are stable.
 let seed = 23;
 const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const n = (v: number) => v.toFixed(1);
 
-const stars = Array.from({ length: 90 }, () => ({
-  x: rand() * 100,
-  y: rand() ** 1.5 * 74, // denser toward the top of the sky
-  s: rand() < 0.86 ? 1 + rand() * 1.4 : 2.4 + rand() * 1.2,
-  d: rand() * 7,
-  t: 3.5 + rand() * 5,
-}));
+// The sky is drawn as a 1600x600 tile, twice, side by side. Each layer slides
+// left by one tile and loops, so the stars drift past without a seam.
+const TILE = 1600;
+const SKY_H = 600;
+const TINTS = ['#fff', '#fff', '#fff', '#d6e8ff', '#ffe6cc'];
+
+const starfield = (count: number, min: number, max: number, twinkling: number) =>
+  Array.from({ length: count }, () => ({
+    x: 3 + rand() * (TILE - 6),
+    y: rand() ** 1.35 * 520, // denser toward the top of the sky
+    r: min + rand() ** 2 * (max - min),
+    fill: TINTS[Math.floor(rand() * TINTS.length)],
+    twinkle: rand() < twinkling,
+    d: rand() * 7,
+    t: 3.5 + rand() * 5,
+  }));
+const farStars = starfield(95, 0.45, 1, 0.3);
+const nearStars = starfield(40, 0.85, 1.9, 0.6);
+
+// A spiral galaxy: soft arms with a scatter of stars along them.
+const spiral = (R: number, turns: number, count: number) => {
+  let arms = '';
+  const dots: { x: number; y: number; r: number; o: number }[] = [];
+  for (const base of [0, Math.PI]) {
+    for (let i = 0; i <= 36; i++) {
+      const t = i / 36;
+      const a = base + t * turns * Math.PI * 2;
+      const r = R * (0.1 + 0.9 * t);
+      arms += `${i ? 'L' : 'M'}${n(r * Math.cos(a))} ${n(r * Math.sin(a))}`;
+    }
+    for (let i = 0; i < count; i++) {
+      const t = rand() ** 0.8;
+      const a = base + t * turns * Math.PI * 2 + (rand() - 0.5) * 0.55;
+      const r = R * (0.1 + 0.9 * t) + (rand() - 0.5) * R * 0.16;
+      dots.push({ x: r * Math.cos(a), y: r * Math.sin(a), r: (0.35 + rand() * 0.75) * (1 - t * 0.45), o: 0.25 + (1 - t) * 0.65 });
+    }
+  }
+  return { arms, dots };
+};
+const HUES = {
+  blue: { arm: '#9fcfff', dot: '#e3f2ff', core: '#fff1d6' },
+  rose: { arm: '#d3aeff', dot: '#f4e6ff', core: '#ffdcc6' },
+};
+const galaxies = [
+  { x: 300, y: 250, R: 60, tilt: -24, flip: 1, squash: 0.44, hue: HUES.blue, spin: 150, ...spiral(60, 1.15, 46) },
+  { x: 1150, y: 138, R: 40, tilt: 30, flip: -1, squash: 0.5, hue: HUES.rose, spin: 210, ...spiral(40, 1, 32) },
+  { x: 735, y: 372, R: 27, tilt: -8, flip: 1, squash: 0.38, hue: HUES.blue, spin: 120, ...spiral(27, 0.9, 20) },
+];
 
 // Landscape, drawn in a 1600x300 box that is cropped from the sides and top.
 const W = 1600;
@@ -57,7 +99,97 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
 
 <footer class="site-footer" data-footer>
   <div class="footer-sky" aria-hidden="true">
-    {stars.map((s) => <span class="fstar" style={`left:${s.x.toFixed(2)}%;top:${s.y.toFixed(2)}%;--s:${s.s.toFixed(2)}px;--d:${s.d.toFixed(2)}s;--t:${s.t.toFixed(2)}s`} />)}
+    <!-- Far away: faint stars, nebulae and slowly turning galaxies. -->
+    <svg class="sky-layer far" viewBox={`0 0 ${TILE * 2} ${SKY_H}`} preserveAspectRatio="xMinYMin slice">
+      <defs>
+        <radialGradient id="sk-nebula-a">
+          <stop offset="0" stop-color="#8a6cff" stop-opacity="0.2"></stop>
+          <stop offset="1" stop-color="#8a6cff" stop-opacity="0"></stop>
+        </radialGradient>
+        <radialGradient id="sk-nebula-b">
+          <stop offset="0" stop-color="#3fa7c9" stop-opacity="0.15"></stop>
+          <stop offset="1" stop-color="#3fa7c9" stop-opacity="0"></stop>
+        </radialGradient>
+        <radialGradient id="sk-lens">
+          <stop offset="0" stop-color="#fff3df" stop-opacity="0.85"></stop>
+          <stop offset="0.25" stop-color="#bcd9ff" stop-opacity="0.35"></stop>
+          <stop offset="1" stop-color="#bcd9ff" stop-opacity="0"></stop>
+        </radialGradient>
+        {
+          galaxies.map((g, i) => (
+            <>
+              <radialGradient id={`sk-haze-${i}`}>
+                <stop offset="0" stop-color={g.hue.arm} stop-opacity="0.3" />
+                <stop offset="0.55" stop-color={g.hue.arm} stop-opacity="0.08" />
+                <stop offset="1" stop-color={g.hue.arm} stop-opacity="0" />
+              </radialGradient>
+              <radialGradient id={`sk-arm-${i}`} gradientUnits="userSpaceOnUse" cx="0" cy="0" r={g.R}>
+                <stop offset="0" stop-color={g.hue.arm} stop-opacity="0.6" />
+                <stop offset="1" stop-color={g.hue.arm} stop-opacity="0" />
+              </radialGradient>
+              <radialGradient id={`sk-core-${i}`}>
+                <stop offset="0" stop-color={g.hue.core} stop-opacity="0.95" />
+                <stop offset="0.4" stop-color={g.hue.core} stop-opacity="0.35" />
+                <stop offset="1" stop-color={g.hue.core} stop-opacity="0" />
+              </radialGradient>
+            </>
+          ))
+        }
+      </defs>
+      {
+        [0, TILE].map((dx) => (
+          <g>
+            <ellipse cx={dx + 520} cy="210" rx="330" ry="150" fill="url(#sk-nebula-a)" transform={`rotate(-14 ${dx + 520} 210)`} />
+            <ellipse cx={dx + 1240} cy="300" rx="280" ry="130" fill="url(#sk-nebula-b)" transform={`rotate(10 ${dx + 1240} 300)`} />
+            {/* An edge-on galaxy, far off. */}
+            <ellipse cx={dx + 1480} cy="262" rx="30" ry="5" fill="url(#sk-lens)" transform={`rotate(18 ${dx + 1480} 262)`} />
+            {galaxies.map((g, i) => (
+              <g transform={`translate(${dx + g.x} ${g.y}) rotate(${g.tilt}) scale(${g.flip} ${g.squash})`}>
+                <circle r={n(g.R * 1.15)} fill={`url(#sk-haze-${i})`} />
+                <g class="spin" style={`animation-duration:${g.spin}s`}>
+                  <path d={g.arms} fill="none" stroke={`url(#sk-arm-${i})`} stroke-width={n(g.R * 0.2)} stroke-linecap="round" />
+                  <path d={g.arms} fill="none" stroke={`url(#sk-arm-${i})`} stroke-width={n(g.R * 0.06)} stroke-linecap="round" />
+                  {g.dots.map((d) => <circle cx={n(d.x)} cy={n(d.y)} r={d.r.toFixed(2)} fill={g.hue.dot} opacity={d.o.toFixed(2)} />)}
+                </g>
+                <circle r={n(g.R * 0.34)} fill={`url(#sk-core-${i})`} />
+              </g>
+            ))}
+            {farStars.map((s) => (
+              <circle
+                class:list={['sstar', { tw: s.twinkle }]}
+                cx={n(dx + s.x)}
+                cy={n(s.y)}
+                r={s.r.toFixed(2)}
+                fill={s.fill}
+                style={s.twinkle ? `--d:${s.d.toFixed(2)}s;--t:${s.t.toFixed(2)}s` : undefined}
+              />
+            ))}
+          </g>
+        ))
+      }
+    </svg>
+    <!-- Closer stars slide by a little faster. -->
+    <svg class="sky-layer near" viewBox={`0 0 ${TILE * 2} ${SKY_H}`} preserveAspectRatio="xMinYMin slice">
+      {
+        [0, TILE].map((dx) => (
+          <g>
+            {nearStars.map((s) => (
+              <>
+                {s.r > 1.45 && <circle cx={n(dx + s.x)} cy={n(s.y)} r={n(s.r * 3.4)} fill="#bcdcff" opacity="0.13" />}
+                <circle
+                  class:list={['sstar', { tw: s.twinkle }]}
+                  cx={n(dx + s.x)}
+                  cy={n(s.y)}
+                  r={s.r.toFixed(2)}
+                  fill={s.fill}
+                  style={s.twinkle ? `--d:${s.d.toFixed(2)}s;--t:${s.t.toFixed(2)}s` : undefined}
+                />
+              </>
+            ))}
+          </g>
+        ))
+      }
+    </svg>
     <span class="shooting" style="left:34%;top:9%;--d:-2s;--t:13s"></span>
     <span class="shooting" style="left:78%;top:22%;--d:-8.5s;--t:19s"></span>
   </div>
@@ -69,15 +201,15 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
       <p class="footer-fine">&copy; 2023 DSchau Publishing &middot; ISBN 979-8-9895683-0-7</p>
     </div>
     <ul class="footer-links">
-      <li><button data-open-book="en">Read the book</button></li>
-      <li><button data-open-book="es" lang="es">Leer en español</button></li>
-      <li><a href="#author">The author</a></li>
-      <li><a href="https://github.com/DSchau/Riley-the-Robot">GitHub</a></li>
+      <li class="footer-read ico-host">
+        <span class="footer-read-label" data-open-book="en"><Icon name="book" />Read the book</span>
+        <button class="lang" data-open-book="en" aria-label="Read the book in English">en</button>
+        <button class="lang" data-open-book="es" lang="es" aria-label="Leer el libro en español">es</button>
+      </li>
+      <li><a href="#author"><Icon name="pencil" />The author</a></li>
+      <li><a href="https://github.com/DSchau/Riley-the-Robot"><Icon name="code" />GitHub</a></li>
     </ul>
-    <p class="footer-fine footer-note">
-      Illustrated with AI image models and edited in Photoshop. The book's source files are{' '}
-      <a href="https://github.com/DSchau/Riley-the-Robot">open on GitHub</a>.
-    </p>
+    <p class="footer-fine footer-note">Illustrated with AI image models and edited in Photoshop.</p>
   </div>
 
   <svg class="footer-land" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" aria-hidden="true">
@@ -141,10 +273,13 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     <ellipse class="firelight" cx={FIRE_X} cy={n(mid(FIRE_X) - 6)} rx="120" ry="52" fill="url(#ft-fire)"></ellipse>
 
     <!-- Riley, from behind, looking up. -->
-    <g class="riley" transform={`translate(${RILEY_X} ${n(mid(RILEY_X) + 1.5)}) scale(1.15)`}>
+    <g class="riley" data-x={RILEY_X} data-y={n(mid(RILEY_X) - 26)} transform={`translate(${RILEY_X} ${n(mid(RILEY_X) + 1.5)}) scale(1.15)`}>
       <ellipse cx="2" cy="0" rx="22" ry="3" fill="#060b1d" opacity="0.5"></ellipse>
-      <path d="M-9 -14L-14 -2M9 -14L14 -2" stroke="#1d3652" stroke-width="5.5" stroke-linecap="round"></path>
-      <circle cx="-14.5" cy="-1.5" r="3.2" fill="#2c5f74"></circle>
+      <g class="riley-arm">
+        <path d="M-9 -14L-14 -2" stroke="#1d3652" stroke-width="5.5" stroke-linecap="round"></path>
+        <circle cx="-14.5" cy="-1.5" r="3.2" fill="#2c5f74"></circle>
+      </g>
+      <path d="M9 -14L14 -2" stroke="#1d3652" stroke-width="5.5" stroke-linecap="round"></path>
       <circle cx="14.5" cy="-1.5" r="3.2" fill="#357085"></circle>
       <rect x="-9" y="-20" width="18" height="21" rx="6.5" fill="#223f5c"></rect>
       <path d="M8.6 -15v11" stroke="#ffb07a" stroke-opacity="0.75" stroke-width="1.1" stroke-linecap="round"></path>
@@ -176,11 +311,13 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     <g class="sprouts" fill="none" stroke-linecap="round">
       {
         sprouts.map((s) => (
+          <g class="push" data-x={n(s.x)} data-y={n(s.y)}>
           <g class="sprout" style={`animation-delay:${s.delay.toFixed(2)}s`}>
             <path d={`M${n(s.x)} ${n(s.y)}q${n(s.lean * 0.2)} ${n(-s.h * 0.6)} ${n(s.lean)} ${n(-s.h)}`} stroke="#2b5f78" stroke-width="1" />
             {s.twin && <path d={`M${n(s.x)} ${n(s.y)}q${n(-s.lean * 0.6 - 2)} ${n(-s.h * 0.35)} ${n(-s.lean - 4)} ${n(-s.h * 0.55)}`} stroke="#2b5f78" stroke-width="0.9" />}
             <circle class="bulb-halo" cx={n(s.x + s.lean)} cy={n(s.y - s.h)} r={n(s.r * 3)} fill="#7fd8ff" stroke="none" style={`animation-delay:${s.delay.toFixed(2)}s`} />
             <circle cx={n(s.x + s.lean)} cy={n(s.y - s.h)} r={n(s.r)} fill="#a5e6ff" stroke="none" />
+          </g>
           </g>
         ))
       }
@@ -198,30 +335,43 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     footer.classList.add('offscreen');
     new IntersectionObserver(([entry]) => footer.classList.toggle('offscreen', !entry.isIntersecting)).observe(footer);
 
-    // Stars near the pointer burn a little brighter.
-    const stars = Array.from(footer.querySelectorAll<HTMLElement>('.fstar'), (el) => ({
-      el,
-      x: parseFloat(el.style.left) / 100,
-      y: parseFloat(el.style.top) / 100,
-      near: 0,
+    // Stars near the pointer burn a little brighter. The layers are always
+    // sliding, so each star's place on screen is worked out from its layer.
+    const layers = Array.from(footer.querySelectorAll<SVGSVGElement>('.sky-layer'), (svg) => ({
+      svg,
+      width: svg.viewBox.baseVal.width,
+      stars: Array.from(svg.querySelectorAll<SVGCircleElement>('.sstar'), (el) => ({
+        el,
+        x: el.cx.baseVal.value,
+        y: el.cy.baseVal.value,
+        near: 0,
+      })),
     }));
     const REACH = 120;
     let pointer: { x: number; y: number } | null = null;
     let queued = false;
+    let again = 0;
     const light = () => {
       queued = false;
-      const box = sky.getBoundingClientRect();
-      for (const star of stars) {
-        let near = 0;
-        if (pointer) {
-          const d = Math.hypot(box.left + star.x * box.width - pointer.x, box.top + star.y * box.height - pointer.y);
-          near = d < REACH ? Math.round((1 - d / REACH) * 10) / 10 : 0;
+      for (const layer of layers) {
+        const box = layer.svg.getBoundingClientRect();
+        const k = box.width / layer.width;
+        for (const star of layer.stars) {
+          let near = 0;
+          if (pointer) {
+            const d = Math.hypot(box.left + star.x * k - pointer.x, box.top + star.y * k - pointer.y);
+            near = d < REACH ? Math.round((1 - d / REACH) * 10) / 10 : 0;
+          }
+          if (near === star.near) continue;
+          star.near = near;
+          star.el.classList.toggle('near', near > 0);
+          if (near) star.el.style.setProperty('--near', String(near));
+          else star.el.style.removeProperty('--near');
         }
-        if (near === star.near) continue;
-        star.near = near;
-        if (near) star.el.style.setProperty('--near', String(near));
-        else star.el.style.removeProperty('--near');
       }
+      // Keep up with the drift while the pointer rests.
+      clearTimeout(again);
+      if (pointer) again = window.setTimeout(queue, 300);
     };
     const queue = () => {
       if (!queued) {
@@ -239,9 +389,81 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
       queue();
     });
 
+    // A breeze crosses the dunes when the pointer arrives, the sprouts part
+    // around it, and Riley waves when it comes close.
+    const land = footer.querySelector<SVGSVGElement>('.footer-land')!;
+    const meadow = land.querySelector<SVGGElement>('.sprouts')!;
+    const riley = land.querySelector<SVGGElement>('.riley')!;
+    const home = { x: Number(riley.dataset.x), y: Number(riley.dataset.y) };
+    const sprouts = Array.from(land.querySelectorAll<SVGGElement>('.push'), (el) => ({
+      el,
+      x: Number(el.dataset.x),
+      y: Number(el.dataset.y),
+      pushed: false,
+    }));
+    const point = land.createSVGPoint();
+    const PART = 130;
+    let hello = 0;
+    const greet = () => {
+      if (hello || calm.matches) return;
+      riley.classList.add('hi');
+      hello = window.setTimeout(() => {
+        riley.classList.remove('hi');
+        hello = 0;
+      }, 2400);
+    };
+    const locate = (ev: PointerEvent) => {
+      const ctm = land.getScreenCTM();
+      if (!ctm) return null;
+      point.x = ev.clientX;
+      point.y = ev.clientY;
+      return point.matrixTransform(ctm.inverse());
+    };
+    let moved: PointerEvent | undefined;
+    let parting = 0;
+    footer.addEventListener('pointerenter', () => {
+      if (calm.matches) return;
+      meadow.classList.remove('gust');
+      void meadow.getBBox(); // restart the animation
+      meadow.classList.add('gust');
+    });
+    footer.addEventListener('pointermove', (ev) => {
+      if (calm.matches || ev.pointerType === 'touch') return;
+      moved = ev;
+      parting ||= requestAnimationFrame(() => {
+        parting = 0;
+        const p = moved && locate(moved);
+        if (!p) return;
+        if (Math.hypot(p.x - home.x, p.y - home.y) < 70) greet();
+        for (const sprout of sprouts) {
+          const dx = sprout.x - p.x;
+          const d = Math.hypot(dx, (sprout.y - p.y) * 0.6);
+          if (d < PART) {
+            const f = (1 - d / PART) ** 1.5;
+            sprout.el.style.transform = `skewX(${(Math.sign(dx) * -f * 34).toFixed(1)}deg) scaleY(${(1 - f * 0.22).toFixed(2)})`;
+            sprout.pushed = true;
+          } else if (sprout.pushed) {
+            sprout.el.style.transform = '';
+            sprout.pushed = false;
+          }
+        }
+      });
+    });
+    footer.addEventListener('pointerleave', () => {
+      for (const sprout of sprouts) {
+        sprout.el.style.transform = '';
+        sprout.pushed = false;
+      }
+    });
+    // A tap says hello too (touch has no hover).
+    footer.addEventListener('pointerdown', (ev) => {
+      const p = locate(ev);
+      if (p && Math.hypot(p.x - home.x, p.y - home.y) < 90) greet();
+    });
+
     // Tap the sky to make a wish.
     footer.addEventListener('click', (ev) => {
-      if (calm.matches || (ev.target as HTMLElement).closest('a, button')) return;
+      if (calm.matches || (ev.target as HTMLElement).closest('a, button, [data-open-book]')) return;
       const box = sky.getBoundingClientRect();
       const wish = document.createElement('span');
       wish.className = 'shooting wish';
@@ -273,18 +495,52 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     z-index: -1;
   }
 
-  .fstar {
+  /* Two tiles wide, and never narrower than twice the footer. */
+  .sky-layer {
     position: absolute;
-    width: var(--s);
-    height: var(--s);
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 calc(var(--s) * (3 + var(--near, 0) * 5)) calc(var(--s) * var(--near, 0) * 0.8) rgb(180 220 255 / 0.8);
-    scale: calc(1 + var(--near, 0) * 1.2);
-    transition:
-      scale 0.7s ease-out,
-      box-shadow 0.7s ease-out;
+    top: 0;
+    left: 0;
+    height: 100%;
+    min-width: 200%;
+    aspect-ratio: 16 / 3;
+    animation: ft-drift 300s linear infinite;
+  }
+
+  .sky-layer.near {
+    animation-duration: 170s;
+  }
+
+  @keyframes ft-drift {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .spin {
+    transform-box: view-box;
+    transform-origin: 0 0;
+    animation: ft-spin 150s linear infinite;
+  }
+
+  @keyframes ft-spin {
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+
+  .sstar {
+    transform-box: fill-box;
+    transform-origin: center;
+    scale: calc(1 + var(--near, 0) * 1.5);
+    transition: scale 0.7s ease-out;
+  }
+
+  .sstar.tw {
     animation: ft-twinkle var(--t) ease-in-out var(--d) infinite;
+  }
+
+  .sstar.near {
+    filter: drop-shadow(0 0 calc(var(--near) * 3px) rgb(180 220 255 / 0.9));
   }
 
   @keyframes ft-twinkle {
@@ -351,6 +607,23 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     padding-top: clamp(48px, 7vw, 84px);
   }
 
+  /* The sky passes behind the words: each block of text sits on a soft patch
+     of night, so stars and galaxies dim as they drift under it. */
+  .footer-inner > * {
+    position: relative;
+  }
+
+  .footer-inner > *::before {
+    content: '';
+    position: absolute;
+    inset: -14px -26px;
+    z-index: -1;
+    border-radius: 30px;
+    background: rgb(11 21 52 / 0.94);
+    filter: blur(13px);
+    pointer-events: none;
+  }
+
   .footer-brand {
     display: inline-block;
     margin-bottom: 6px;
@@ -366,7 +639,7 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
 
   .footer-fine {
     font-size: 0.85rem;
-    color: var(--ink-faint);
+    color: #a3aed3;
   }
 
   .footer-note {
@@ -385,22 +658,53 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     font: 500 1rem var(--font-display);
   }
 
-  .footer-links :is(a, button) {
+  .footer-links :is(a, .footer-read-label) {
     position: relative;
     display: inline-block;
     padding: 2px 0;
-    border: 0;
-    background: none;
     color: var(--ink);
-    font: inherit;
     line-height: 1.6;
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
   }
 
+  /* One entry for the book, with a little tag for each language. */
+  .footer-read {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .footer-read-label {
+    margin-right: 2px;
+  }
+
+  .lang {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.42em 0.8em;
+    background: #17305a;
+    box-shadow: inset 0 0 0 1px #2f5f8c;
+    color: var(--glow);
+    font: 600 0.72rem/1 var(--font-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+      background 0.25s ease,
+      color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .lang:is(:hover, :focus-visible) {
+    background: var(--glow);
+    box-shadow: 0 0 14px rgb(127 216 255 / 0.45);
+    color: var(--night);
+  }
+
   /* A little comet trail under the link. */
-  .footer-links :is(a, button)::after {
+  .footer-links :is(a, .footer-read-label)::after {
     content: '';
     position: absolute;
     inset: auto 0 -2px;
@@ -412,12 +716,8 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     transition: scale 0.35s ease;
   }
 
-  .footer-links :is(a, button):is(:hover, :focus-visible)::after {
+  .footer-links :is(a, .footer-read-label):is(:hover, :focus-visible)::after {
     scale: 1 1;
-  }
-
-  .footer-note a:hover {
-    color: var(--ink);
   }
 
   @media (max-width: 720px) {
@@ -435,7 +735,7 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     margin-top: -8px;
   }
 
-  .footer-land :is(.planet, .flame, .sprout, .riley-head) {
+  .footer-land :is(.planet, .flame, .sprout, .push, .riley-head) {
     transform-box: fill-box;
   }
 
@@ -558,6 +858,60 @@ const embers = Array.from({ length: 7 }, (_, i) => ({
     }
     to {
       transform: skewX(6deg);
+    }
+  }
+
+  /* Set by the script when the pointer enters: one breeze, then back to swaying. */
+  .sprouts:global(.gust) .sprout {
+    animation:
+      ft-gust 1.8s cubic-bezier(0.3, 0, 0.2, 1) 1,
+      ft-sway 6.5s ease-in-out 1.8s infinite alternate;
+  }
+
+  @keyframes ft-gust {
+    0% {
+      transform: skewX(0deg);
+    }
+    25% {
+      transform: skewX(20deg);
+    }
+    60% {
+      transform: skewX(-8deg);
+    }
+    100% {
+      transform: skewX(-5deg);
+    }
+  }
+
+  /* Sprouts part around the pointer (transform set inline by the script). */
+  .push {
+    transform-origin: 50% 100%;
+    transition: transform 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+  }
+
+  /* Riley's arm, hinged at the shoulder. */
+  .riley-arm {
+    transform-origin: -9px -14px;
+  }
+
+  .riley:global(.hi) .riley-arm {
+    animation: ft-hi 2.4s ease-in-out;
+  }
+
+  @keyframes ft-hi {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    18%,
+    42%,
+    66% {
+      transform: rotate(152deg);
+    }
+    30%,
+    54%,
+    78% {
+      transform: rotate(122deg);
     }
   }
 

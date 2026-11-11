@@ -267,7 +267,7 @@ const FRAME_H = 4.1;
 const FRAME_W = 3.5;
 const FRAME_Y = 1.86;
 
-/** Paper tooth and pencil strokes, laid over every frame so Riley reads as pencil and pastel like the book. */
+/** A whisper of paper tooth and pencil strokes over every frame, so Riley reads as pencil and pastel like the book. */
 const GRAIN = 384;
 let grain: HTMLCanvasElement | undefined;
 function getGrain() {
@@ -284,20 +284,20 @@ function getGrain() {
     const c = v < 0 ? 12 : 255;
     img.data[i] = img.data[i + 1] = c;
     img.data[i + 2] = v < 0 ? 30 : 240;
-    img.data[i + 3] = Math.min(255, Math.abs(v) * (v < 0 ? 120 : 100));
+    img.data[i + 3] = Math.min(255, Math.abs(v) * (v < 0 ? 30 : 22));
   }
   ctx.putImageData(img, 0, 0);
   // Short hatching, all leaning the same way. Each stroke is drawn on every
   // neighbouring tile too, so the pattern repeats without a seam.
   ctx.lineCap = 'round';
-  for (let i = 0; i < 1500; i++) {
+  for (let i = 0; i < 900; i++) {
     const x = rand() * GRAIN;
     const y = rand() * GRAIN;
     const angle = -0.95 + (rand() - 0.5) * 0.7;
     const len = 4 + rand() * 9;
     const dx = Math.cos(angle) * len;
     const dy = Math.sin(angle) * len;
-    ctx.strokeStyle = rand() < 0.7 ? `rgb(14 24 44 / ${0.03 + rand() * 0.06})` : `rgb(255 248 232 / ${0.02 + rand() * 0.035})`;
+    ctx.strokeStyle = rand() < 0.7 ? `rgb(14 24 44 / ${0.015 + rand() * 0.03})` : `rgb(255 248 232 / ${0.01 + rand() * 0.018})`;
     ctx.lineWidth = 0.7 + rand() * 1.1;
     ctx.beginPath();
     for (const ox of [-GRAIN, 0, GRAIN]) {
