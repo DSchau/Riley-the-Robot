@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import Book3D from '../components/Book3D.astro';
 import Reader from '../components/Reader.astro';
+import Riley from '../components/Riley.astro';
+import Footer from '../components/Footer.astro';
 
 // Deterministic starfield so builds are stable.
 let seed = 7;
@@ -38,10 +40,16 @@ const reasons = [
   },
 ];
 
+const unhex = (hex: string) =>
+  hex
+    .split(' ')
+    .map((h) => String.fromCharCode(parseInt(h, 16)))
+    .join('');
+
 const secrets = [
   { hex: '49 20 61 6d 20 73 6f 20 6c 75 63 6b 79 20 74 6f 20 62 65 20 79 6f 75 72 20 64 61 64 21', where: 'Hidden on the dedication page' },
   { hex: '50 65 72 20 61 73 70 65 72 61 20 61 64 20 61 73 74 72 61', where: 'Tucked into the very last page' },
-];
+].map((s) => ({ ...s, plain: unhex(s.hex) }));
 ---
 
 <Layout>
@@ -76,7 +84,7 @@ const secrets = [
           down, settle in, and enjoy!
         </p>
         <div class="cta">
-          <button class="btn" data-open-book="en">
+          <button class="btn" data-open-book="en" data-riley-cheer>
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
               ><path
                 d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5m0-13c2-1.5 5-2 9-1.5v13c-4-.5-7 0-9 1.5m0-13v13"
@@ -148,7 +156,8 @@ const secrets = [
     <section id="riley" class="meet wrap">
       <div class="meet-art">
         <button class="riley-hello" aria-label="Say hello to Riley">
-          <img src="/art/riley.webp" alt="Riley the Robot, kneeling and smiling" width="753" height="1000" loading="lazy" />
+          <!-- So many hellos! Riley isn't sure which one is yours. -->
+          <Riley mood="confused" tap="talk" fallback="/art/riley-wave.webp" />
           <span class="bubble" aria-live="polite">Hello!</span>
         </button>
       </div>
@@ -173,11 +182,19 @@ const secrets = [
         <div class="secret-list">
           {
             secrets.map((s) => (
-              <figure class="secret" data-hex={s.hex}>
-                <code>{s.hex}</code>
+              <figure class="secret">
+                {/* Both messages share one cell, so the card is always as tall as the taller one. */}
+                <div class="secret-text">
+                  <code>{s.hex}</code>
+                  <p class="plain-size" aria-hidden="true">{s.plain}</p>
+                  <p class="plain">{s.plain}</p>
+                </div>
                 <figcaption>
                   <span>{s.where}</span>
-                  <button class="decode">Decode</button>
+                  <button class="decode">
+                    <span>Decode</span>
+                    <span>Show robot</span>
+                  </button>
                 </figcaption>
               </figure>
             ))
@@ -200,19 +217,15 @@ const secrets = [
     </section>
 
     <section class="closing">
-      <img class="closing-riley" src="/art/riley-sketch.webp" alt="" width="667" height="1000" loading="lazy" />
+      <button class="closing-riley" aria-label="Wave to Riley">
+        <Riley greet tap="wave" fallback="/art/riley-wave.webp" />
+      </button>
       <h2>Whenever you return, you and I will become we!</h2>
-      <button class="btn" data-open-book="en">Read it again</button>
+      <button class="btn" data-open-book="en" data-riley-cheer>Read it again</button>
     </section>
   </main>
 
-  <footer class="site-footer wrap">
-    <p>&copy; 2023 DSchau Publishing &middot; ISBN 979-8-9895683-0-7</p>
-    <p>
-      Illustrated with AI image models and edited in Photoshop. The book's source files are
-      <a href="https://github.com/DSchau/Riley-the-Robot">open on GitHub</a>.
-    </p>
-  </footer>
+  <Footer />
 
   <Reader />
 </Layout>
@@ -239,31 +252,29 @@ const secrets = [
   const glyphs = '0123456789abcdef';
   for (const fig of document.querySelectorAll<HTMLElement>('.secret')) {
     const btn = fig.querySelector<HTMLButtonElement>('.decode')!;
-    const code = fig.querySelector<HTMLElement>('code')!;
-    const hex = fig.dataset.hex!;
-    const plain = hex
-      .split(' ')
-      .map((h) => String.fromCharCode(parseInt(h, 16)))
-      .join('');
+    // The scramble plays in an overlay; `.plain-size` holds the card's height.
+    const out = fig.querySelector<HTMLElement>('.plain')!;
+    const plain = out.textContent!;
     let decoded = false;
+    let run = 0;
     btn.addEventListener('click', () => {
       decoded = !decoded;
-      btn.textContent = decoded ? 'Show robot' : 'Decode';
+      const mine = ++run;
       fig.classList.toggle('decoded', decoded);
-      if (!decoded) {
-        code.textContent = hex;
-        return;
-      }
+      if (!decoded) return;
+      // Any Riley on screen is delighted you cracked it.
+      window.dispatchEvent(new CustomEvent('riley:emote', { detail: 'celebrate' }));
       let frame = 0;
       const total = 18;
       const tick = () => {
+        if (mine !== run) return;
         frame++;
         const reveal = Math.floor((frame / total) * plain.length);
-        code.textContent =
+        out.textContent =
           plain.slice(0, reveal) +
           Array.from(plain.slice(reveal), (c) => (c === ' ' ? ' ' : glyphs[Math.floor(Math.random() * 16)])).join('');
         if (frame < total) requestAnimationFrame(tick);
-        else code.textContent = plain;
+        else out.textContent = plain;
       };
       tick();
     });
@@ -615,11 +626,7 @@ const secrets = [
     cursor: pointer;
   }
 
-  .riley-hello img {
-    filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.5));
-  }
-
-  .riley-hello.bounce img {
+  .riley-hello.bounce .bubble {
     animation: bounce 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
   }
 
@@ -687,6 +694,15 @@ const secrets = [
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
   }
 
+  .secret-text {
+    position: relative;
+    display: grid;
+  }
+
+  .secret-text > * {
+    grid-area: 1 / 1;
+  }
+
   .secret code {
     font: 500 0.95rem/1.7 ui-monospace, 'SF Mono', Menlo, monospace;
     color: var(--glow);
@@ -694,9 +710,21 @@ const secrets = [
     min-height: 3.4em;
   }
 
-  .secret.decoded code {
+  .secret :is(.plain, .plain-size) {
     font: 600 clamp(1.3rem, 2.4vw, 1.6rem)/1.3 var(--font-display);
     color: var(--ink);
+  }
+
+  /* The decoded line sits on top, so the scramble can't nudge the layout. */
+  .secret .plain {
+    position: absolute;
+    inset: 0;
+  }
+
+  .secret .plain-size,
+  .secret:not(.decoded) .plain,
+  .secret.decoded code {
+    visibility: hidden;
   }
 
   .secret figcaption {
@@ -708,7 +736,10 @@ const secrets = [
     color: var(--ink-faint);
   }
 
+  /* Both labels are stacked, so the button keeps the wider one's width. */
   .decode {
+    display: inline-grid;
+    justify-items: center;
     flex: none;
     border: 0;
     border-radius: 999px;
@@ -717,6 +748,15 @@ const secrets = [
     color: var(--glow);
     font: 600 0.9rem var(--font-display);
     cursor: pointer;
+  }
+
+  .decode span {
+    grid-area: 1 / 1;
+  }
+
+  .secret:not(.decoded) .decode span:last-child,
+  .secret.decoded .decode span:first-child {
+    visibility: hidden;
   }
 
   .decode:hover {
@@ -770,7 +810,11 @@ const secrets = [
   }
 
   .closing-riley {
-    width: 160px;
+    width: 220px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
   }
 
   .closing h2 {
@@ -778,13 +822,4 @@ const secrets = [
     font-size: clamp(1.8rem, 3.6vw, 2.6rem);
   }
 
-  .site-footer {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 8px 24px;
-    padding-block: 28px;
-    font-size: 0.9rem;
-    color: var(--ink-faint);
-  }
 </style>

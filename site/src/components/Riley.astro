@@ -1,0 +1,141 @@
+---
+// A live, WebGL Riley. Drop it anywhere; every copy on the page shares one
+// renderer. Riley's eyes and head follow the pointer, and other scripts can
+// make Riley react:
+//
+//   el.dispatchEvent(new CustomEvent('riley:emote', { detail: 'wave' }))
+//   el.dispatchEvent(new CustomEvent('riley:mood', { detail: 'happy' }))
+//   window.dispatchEvent(new CustomEvent('riley:emote', { detail: 'celebrate' }))  // every Riley on screen
+//
+// Emotes: wave, talk, celebrate, surprise, nod. Add `data-riley-cheer` to any
+// element to make Riley beam while it's hovered or focused.
+interface Props {
+  /** Resting expression. A sleeping Riley wakes when approached. */
+  mood?: 'idle' | 'happy' | 'curious' | 'confused' | 'sleep';
+  /** Emote to play when Riley (or the button around Riley) is tapped. */
+  tap?: 'wave' | 'talk' | 'celebrate' | 'surprise' | 'nod';
+  /** Wave whenever Riley scrolls into view. */
+  greet?: boolean;
+  /** Degrees to turn the body; positive faces the viewer's right. */
+  turn?: number;
+  /** Illustration shown only when WebGL (or JavaScript) isn't available. */
+  fallback?: string;
+  /** Describes Riley to assistive tech; omit when a parent is already labelled. */
+  label?: string;
+  class?: string;
+}
+
+const { mood = 'idle', tap, greet = false, turn = 0, fallback, label, class: className } = Astro.props;
+---
+
+<span
+  class:list={['riley3d', className]}
+  data-riley
+  data-mood={mood}
+  data-tap={tap}
+  data-greet={greet ? '' : undefined}
+  data-turn={turn || undefined}
+  data-fallback={fallback}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : 'true'}
+>
+  <canvas></canvas>
+  {
+    fallback && (
+      <noscript>
+        <img class="riley3d-fallback" src={fallback} alt="" loading="lazy" decoding="async" />
+      </noscript>
+    )
+  }
+</span>
+
+<script>
+  import '../riley/mount';
+</script>
+
+<style>
+  .riley3d {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+  }
+
+  canvas,
+  .riley3d :global(.riley3d-fallback) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .riley3d :global(.riley3d-fallback) {
+    object-fit: contain;
+  }
+
+  /* Riley beams in: the chest light arrives first, then the rest of the robot. */
+  .riley3d::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 56%;
+    width: 9%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(#e9fdff, #7fd8ff 45%, rgb(127 216 255 / 0) 70%);
+    box-shadow: 0 0 22px 6px rgb(127 216 255 / 0.35);
+    translate: -50% -50%;
+    opacity: 0;
+    scale: 0.4;
+    transition:
+      opacity 0.5s ease,
+      scale 0.5s ease;
+  }
+
+  .riley3d-loading::before {
+    opacity: 1;
+    scale: 1;
+    animation: riley-beam 1.5s ease-in-out 0.5s infinite alternate;
+  }
+
+  .riley3d-ready::before {
+    opacity: 0;
+    scale: 1.6;
+    animation: none;
+  }
+
+  @keyframes riley-beam {
+    to {
+      opacity: 0.45;
+      scale: 0.8;
+    }
+  }
+
+  canvas {
+    opacity: 0;
+    scale: 0.94;
+    translate: 0 2%;
+    transition:
+      opacity 0.55s ease,
+      scale 0.7s cubic-bezier(0.2, 1.3, 0.4, 1),
+      translate 0.7s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+
+  .riley3d-ready canvas {
+    opacity: 1;
+    scale: 1;
+    translate: 0 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .riley3d::before {
+      display: none;
+    }
+    canvas {
+      scale: 1;
+      translate: 0 0;
+      transition: opacity 0.3s ease;
+    }
+  }
+</style>

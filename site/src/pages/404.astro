@@ -1,10 +1,14 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Riley from '../components/Riley.astro';
 ---
 
 <Layout title="Lost in space — Riley the Robot">
   <main class="lost">
-    <img src="/art/riley-peek.webp" alt="Riley peeking around a corner" width="800" height="1000" />
+    <!-- Fast asleep until someone comes close. -->
+    <div class="lost-riley">
+      <Riley mood="sleep" tap="wave" fallback="/art/riley-wave.webp" label="Riley the Robot, fast asleep" />
+    </div>
     <h1>This page drifted off to sleep.</h1>
     <p>Days became months, months became years… and it never came back.</p>
     <a class="btn" href="/">Back to Riley</a>
@@ -21,9 +25,8 @@ import Layout from '../layouts/Layout.astro';
     padding: 48px var(--gutter);
     text-align: center;
   }
-  img {
-    width: 200px;
-    border-radius: 24px;
+  .lost-riley {
+    width: 240px;
   }
   h1 {
     font-size: clamp(2rem, 5vw, 3rem);
