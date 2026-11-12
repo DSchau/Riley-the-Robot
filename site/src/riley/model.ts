@@ -12,11 +12,14 @@ import {
   CylinderGeometry,
   ExtrudeGeometry,
   Group,
+  LatheGeometry,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  NoColorSpace,
   Path,
   PlaneGeometry,
+  RepeatWrapping,
   Shape,
   ShapeGeometry,
   SphereGeometry,
@@ -24,19 +27,19 @@ import {
   SpriteMaterial,
   SRGBColorSpace,
   TorusGeometry,
+  Vector2,
   type BufferGeometry,
   type Material,
+  type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // Sampled from the cover art.
 const COLOR = {
   shell: 0x2a4e6c,
-  shellLight: 0x356283,
   shellDark: 0x1e3751,
   limb: 0x234361,
   joint: 0x18293a,
-  hand: 0x357085,
   ring: 0x2b6078,
   frame: 0xffffff,
   screen: 0xffffff,
@@ -152,6 +155,116 @@ function glyphTexture(glyph: string, fill: string) {
   return tex;
 }
 
+/**
+ * Years of wear, baked into two small tiling textures: `color` darkens grime
+ * and lightens scuffs; `surface` packs height (R), roughness (G) and
+ * metalness (B), so scratches catch the light as bare metal.
+ */
+function wearTextures() {
+  const N = 256;
+  let s = 4242;
+  const rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  // Tiling value noise.
+  const lattice = (cells: number) => {
+    const g = Float32Array.from({ length: cells * cells }, rand);
+    return (x: number, y: number) => {
+      const fx = (x / N) * cells;
+      const fy = (y / N) * cells;
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const sx = tx * tx * (3 - 2 * tx);
+      const sy = ty * ty * (3 - 2 * ty);
+      const at = (i: number, j: number) => g[(((j % cells) + cells) % cells) * cells + (((i % cells) + cells) % cells)];
+      return (at(x0, y0) * (1 - sx) + at(x0 + 1, y0) * sx) * (1 - sy) + (at(x0, y0 + 1) * (1 - sx) + at(x0 + 1, y0 + 1) * sx) * sy;
+    };
+  };
+  const broad = [lattice(3), lattice(7), lattice(15)];
+  const fine = lattice(48);
+
+  // Scratches and chips are drawn with the 2D canvas, then read back as a mask.
+  const mask = (draw: (ctx: CanvasRenderingContext2D) => void) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = N;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, N, N);
+    ctx.strokeStyle = ctx.fillStyle = '#fff';
+    ctx.lineCap = 'round';
+    draw(ctx);
+    return ctx.getImageData(0, 0, N, N).data;
+  };
+  // Everything is repeated on the neighbouring tiles so the texture has no seam.
+  const tiled = (fn: (ox: number, oy: number) => void) => {
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) fn(ox, oy);
+  };
+  const scratches = mask((ctx) => {
+    for (let i = 0; i < 150; i++) {
+      const x = rand() * N;
+      const y = rand() * N;
+      const a = rand() * Math.PI;
+      const len = 5 + rand() * rand() * 44;
+      ctx.globalAlpha = 0.25 + rand() * 0.6;
+      ctx.lineWidth = 0.6 + rand() * 0.7;
+      ctx.beginPath();
+      tiled((ox, oy) => {
+        ctx.moveTo(x + ox, y + oy);
+        ctx.lineTo(x + ox + Math.cos(a) * len, y + oy + Math.sin(a) * len);
+      });
+      ctx.stroke();
+    }
+  });
+  const chips = mask((ctx) => {
+    for (let i = 0; i < 80; i++) {
+      const x = rand() * N;
+      const y = rand() * N;
+      const r = 0.5 + rand() * rand() * 2.6;
+      ctx.globalAlpha = 0.4 + rand() * 0.6;
+      ctx.beginPath();
+      tiled((ox, oy) => {
+        ctx.moveTo(x + ox + r, y + oy);
+        ctx.ellipse(x + ox, y + oy, r, r * (0.6 + rand() * 0.4), 0, 0, Math.PI * 2);
+      });
+      ctx.fill();
+    }
+  });
+
+  const color = new ImageData(N, N);
+  const surface = new ImageData(N, N);
+  const byte = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = (y * N + x) * 4;
+      const n = broad[0](x, y) * 0.55 + broad[1](x, y) * 0.3 + broad[2](x, y) * 0.15;
+      // Grime gathers in patches; polish survives in others.
+      const grime = Math.max(0, Math.min(1, (n - 0.5) / 0.22));
+      const polish = Math.max(0, Math.min(1, (0.46 - n) / 0.2));
+      const mottle = fine(x, y) - 0.5;
+      const scratch = scratches[i] / 255;
+      const chip = chips[i] / 255;
+      const v = 0.86 - 0.15 * grime + 0.05 * polish + 0.035 * mottle + 0.22 * scratch + 0.14 * chip;
+      // Scuffs go pale and steely rather than just lighter.
+      color.data[i] = byte(v + 0.1 * scratch + 0.08 * chip);
+      color.data[i + 1] = byte(v + 0.05 * scratch + 0.04 * chip);
+      color.data[i + 2] = byte(v - 0.02 * grime);
+      color.data[i + 3] = 255;
+      surface.data[i] = byte(0.5 + 0.05 * mottle - 0.4 * scratch - 0.45 * chip);
+      surface.data[i + 1] = byte(0.5 + 0.3 * grime - 0.16 * polish + 0.06 * mottle - 0.22 * scratch - 0.14 * chip);
+      surface.data[i + 2] = byte(0.62 - 0.3 * grime + 0.12 * polish + 0.38 * scratch + 0.38 * chip);
+      surface.data[i + 3] = 255;
+    }
+  }
+  const texture = (data: ImageData, srgb: boolean) => {
+    const t = canvasTexture(N, N, (ctx) => ctx.putImageData(data, 0, 0));
+    if (!srgb) t.colorSpace = NoColorSpace;
+    t.wrapS = t.wrapT = RepeatWrapping;
+    t.anisotropy = 4;
+    return t;
+  };
+  return { color: texture(color, true), surface: texture(surface, false) };
+}
+
 /** Geometry and materials shared by every Riley on the page. */
 interface Kit {
   geo: Record<string, BufferGeometry>;
@@ -170,7 +283,7 @@ const HEAD_W = 2.02;
 const HEAD_H = 1.78;
 const HEAD_R = 0.3;
 
-function getKit(): Kit {
+function getKit(env?: Texture): Kit {
   if (kit) return kit;
 
   // Only the front face of the head is cream: a thin bezel with a rounded
@@ -251,13 +364,82 @@ function getKit(): Kit {
   const sideways = <T extends BufferGeometry>(g: T) => g.rotateZ(Math.PI / 2);
   const faceOut = <T extends BufferGeometry>(g: T) => g.rotateY(Math.PI / 2);
 
-  const matte = (color: number, roughness = 0.88) => new MeshStandardMaterial({ color, roughness, metalness: 0 });
+  // Old painted metal: worn, scuffed and a little shiny where hands have
+  // polished it. `repeat` keeps the wear the same size on big and small parts.
+  const wear = wearTextures();
+  const metal = (color: number, repeat = 1, sheen = 1) => {
+    const [map, surface] = [wear.color, wear.surface].map((t) => {
+      if (repeat === 1) return t;
+      const c = t.clone();
+      c.repeat.set(repeat, repeat);
+      c.needsUpdate = true;
+      return c;
+    });
+    const m = new MeshStandardMaterial({
+      color,
+      map,
+      roughness: 0.74 / sheen,
+      roughnessMap: surface,
+      metalness: 0.9,
+      metalnessMap: surface,
+      bumpMap: surface,
+      bumpScale: 0.35,
+      envMap: env ?? null,
+      envMapIntensity: 1.25,
+    });
+    // The wear map darkens on average; lift the paint so it lands on the cover's colour.
+    m.color.multiplyScalar(1.38);
+    return m;
+  };
+  // Rubber and cloth: no shine at all.
+  const matte = (color: number, roughness = 0.9) => new MeshStandardMaterial({ color, roughness, metalness: 0 });
+
+  // On the cover the chest is broad at the shoulders and narrows to the waist.
+  const chestGeo = new RoundedBoxGeometry(0.86, 0.72, 0.66, 6, 0.3);
+  {
+    const pos = chestGeo.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) * (1 + 0.12 * (pos.getY(i) / 0.36)));
+  }
+  // A band with soft shoulders, for the waist and the cuffs.
+  const band = (r: number, h: number, round: number) => {
+    const pts: Vector2[] = [new Vector2(r - round, -h / 2)];
+    for (let i = 0; i <= 6; i++) {
+      const a = -Math.PI / 2 + (i / 6) * (Math.PI / 2);
+      pts.push(new Vector2(r - round + Math.cos(a) * round, -h / 2 + round + Math.sin(a) * round));
+    }
+    for (let i = 0; i <= 6; i++) {
+      const a = (i / 6) * (Math.PI / 2);
+      pts.push(new Vector2(r - round + Math.cos(a) * round, h / 2 - round + Math.sin(a) * round));
+    }
+    pts.push(new Vector2(r - round, h / 2));
+    return new LatheGeometry(pts, 40).rotateY(Math.PI);
+  };
+  // The hips are a rounded bowl, like a pair of briefs, that the legs come out from under.
+  const pelvis = new LatheGeometry(
+    [
+      [0, -0.235],
+      [0.09, -0.228],
+      [0.18, -0.2],
+      [0.265, -0.15],
+      [0.335, -0.075],
+      [0.38, 0.01],
+      [0.395, 0.08],
+      [0.385, 0.12],
+      [0.35, 0.152],
+      [0.28, 0.165],
+      [0, 0.165],
+    ].map(([x, y]) => new Vector2(x, y)),
+    40,
+  );
+  // Seam to the back, then flattened front to back.
+  pelvis.rotateY(Math.PI);
+  pelvis.scale(1, 1, 0.76);
 
   // Pencil outline: the same mesh again, pushed out along its normals and
   // drawn inside-out so only a rim shows.
   // Riley's chest plate has a seam that dips through the light and climbs to
   // each shoulder. Drawn in the shader so it follows the surface exactly.
-  const chest = matte(COLOR.shell);
+  const chest = metal(COLOR.shell);
   chest.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vObj;')
@@ -267,7 +449,7 @@ function getKit(): Kit {
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        float seam = smoothstep( 0.02, 0.011, abs( vObj.y - 1.05 * vObj.x * vObj.x ) ) * step( 0.0, vObj.z );
+        float seam = smoothstep( 0.02, 0.011, abs( vObj.y + 0.06 - 1.05 * vObj.x * vObj.x ) ) * step( 0.0, vObj.z );
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.006, 0.014, 0.03 ), seam );`,
       );
   };
@@ -302,36 +484,38 @@ function getKit(): Kit {
       mouth: new PlaneGeometry(0.96, 0.6),
       neck: new CylinderGeometry(0.17, 0.21, 0.2, 24),
       collar: new TorusGeometry(0.24, 0.05, 10, 32).rotateX(Math.PI / 2),
-      chest: new RoundedBoxGeometry(0.86, 0.84, 0.66, 6, 0.3),
-      waist: new CylinderGeometry(0.32, 0.29, 0.16, 28),
-      pelvis: new RoundedBoxGeometry(0.74, 0.38, 0.56, 6, 0.18),
+      chest: chestGeo,
+      waist: band(0.305, 0.095, 0.04).scale(1, 1, 0.8),
+      waistGap: new CylinderGeometry(0.27, 0.27, 0.22, 28).scale(1, 1, 0.8),
+      pelvis,
       chestLight: new CircleGeometry(0.125, 36),
       chestRing: new TorusGeometry(0.165, 0.047, 12, 40),
       shoulder: new SphereGeometry(0.25, 24, 18),
-      upperArm: new CapsuleGeometry(0.13, 0.17, 6, 16),
+      upperArm: new CapsuleGeometry(0.13, 0.17, 10, 28),
       joint: new SphereGeometry(0.125, 18, 14),
-      forearm: new CapsuleGeometry(0.16, 0.15, 6, 16),
-      palm: new RoundedBoxGeometry(0.3, 0.26, 0.16, 4, 0.075),
-      finger: new CapsuleGeometry(0.041, 0.09, 4, 10),
-      thumb: new CapsuleGeometry(0.048, 0.08, 4, 10),
-      thigh: new CapsuleGeometry(0.2, 0.16, 6, 16),
-      knee: new SphereGeometry(0.19, 18, 14),
-      shin: new CapsuleGeometry(0.215, 0.18, 6, 16),
+      forearm: new CapsuleGeometry(0.16, 0.15, 10, 28),
+      cuff: band(0.185, 0.12, 0.04),
+      palm: new RoundedBoxGeometry(0.37, 0.28, 0.21, 5, 0.1),
+      finger: new CapsuleGeometry(0.062, 0.07, 5, 12),
+      thumb: new CapsuleGeometry(0.066, 0.07, 5, 12),
+      thigh: new CapsuleGeometry(0.2, 0.16, 10, 28),
+      knee: new SphereGeometry(0.19, 28, 20),
+      shin: new CapsuleGeometry(0.215, 0.18, 10, 28),
       foot: new RoundedBoxGeometry(0.46, 0.26, 0.62, 5, 0.125),
       shadow: new PlaneGeometry(2.8, 1.6),
     },
     mat: {
-      shell: matte(COLOR.shell),
+      shell: metal(COLOR.shell),
+      // The head is far bigger than any other part, so its wear tiles more often.
+      headShell: metal(COLOR.shell, 3),
       chest,
-      shellLight: matte(COLOR.shellLight),
-      shellDark: matte(COLOR.shellDark),
-      joint: matte(COLOR.joint, 0.95),
-      hand: matte(COLOR.hand),
-      frame: new MeshStandardMaterial({ color: COLOR.frame, roughness: 0.95, metalness: 0, map: frameTex }),
-      limb: matte(COLOR.limb),
+      shellDark: metal(COLOR.shellDark),
+      joint: matte(COLOR.joint),
+      frame: new MeshStandardMaterial({ color: COLOR.frame, roughness: 0.7, metalness: 0, map: frameTex }),
+      limb: metal(COLOR.limb),
       // Painted like the cover: cool at the top, warm low down, shaded into the frame.
       screen: new MeshStandardMaterial({ roughness: 1, metalness: 0, map: screenTex }),
-      ring: matte(COLOR.ring),
+      ring: metal(COLOR.ring, 1, 1.25),
       // Softer than ink: on the cover this edge is a smudged pencil line.
       screenLine: new MeshBasicMaterial({ color: 0x3d4b56, toneMapped: false }),
       ink: new MeshBasicMaterial({ color: COLOR.ink, toneMapped: false }),
@@ -422,8 +606,9 @@ function drawMouth(ctx: CanvasRenderingContext2D, { smile, open, wide, wave }: M
   ctx.restore();
 }
 
-export function buildRiley(): RileyRig {
-  const k = getKit();
+/** `env` is the prefiltered sky the metal reflects. */
+export function buildRiley(env?: Texture): RileyRig {
+  const k = getKit(env);
 
   /** A mesh, plus its pencil outline. */
   const part = (geo: BufferGeometry, mat: Material, outlined = true) => {
@@ -473,11 +658,14 @@ export function buildRiley(): RileyRig {
   body.add(torso);
 
   const pelvis = part(k.geo.pelvis, k.mat.shell);
-  pelvis.position.y = 0.04;
-  const waist = part(k.geo.waist, k.mat.joint);
-  waist.position.y = 0.25;
+  pelvis.position.y = 0.02;
+  // A ribbed band at the waist, with a dark gap either side of it.
+  const waistGap = part(k.geo.waistGap, k.mat.joint, false);
+  waistGap.position.y = 0.27;
+  const waist = part(k.geo.waist, k.mat.limb);
+  waist.position.y = 0.272;
   const chest = part(k.geo.chest, k.mat.chest);
-  chest.position.y = 0.6;
+  chest.position.y = 0.66;
   const chestRing = part(k.geo.chestRing, k.mat.ring, false);
   chestRing.position.set(0, 0.6, 0.305);
   const chestLight = new Mesh(k.geo.chestLight, glowMaterial);
@@ -488,7 +676,7 @@ export function buildRiley(): RileyRig {
   collar.position.y = 0.98;
   const neck = part(k.geo.neck, k.mat.joint, false);
   neck.position.y = 1.02;
-  torso.add(pelvis, waist, chest, chestRing, chestLight, chestHalo, collar, neck);
+  torso.add(pelvis, waistGap, waist, chest, chestRing, chestLight, chestHalo, collar, neck);
 
   // Arms
   const buildArm = (side: -1 | 1): Arm => {
@@ -507,20 +695,31 @@ export function buildRiley(): RileyRig {
     elbow.add(part(k.geo.joint, k.mat.joint), forearm);
     shoulder.add(elbow);
 
+    // Big mitts in the same painted metal as the rest of Riley, as on the
+    // cover: a cuff at the wrist, a rounded palm, three fat fingers and a thumb.
+    // The palm faces -z here and the thumb sits on the body's side; stage.ts
+    // turns the wrist so the hands hang palm-in.
     const hand = new Group();
-    hand.position.y = -0.46;
-    // Big mitten hands.
-    hand.scale.setScalar(1.3);
-    hand.add(part(k.geo.palm, k.mat.hand));
-    for (const [i, x] of [-0.108, -0.036, 0.036, 0.108].entries()) {
-      const finger = part(k.geo.finger, k.mat.hand);
-      finger.position.set(x, -0.17 - (i === 1 || i === 2 ? 0.02 : 0), 0);
-      finger.rotation.z = x * 2.2;
-      hand.add(finger);
+    hand.position.y = -0.44;
+    hand.scale.setScalar(1.12);
+    const cuff = part(k.geo.cuff, k.mat.shell);
+    cuff.position.y = 0.07;
+    const palm = part(k.geo.palm, k.mat.shell);
+    palm.position.y = -0.12;
+    hand.add(cuff, palm);
+    for (const [i, x] of [-0.118, 0, 0.118].entries()) {
+      // Pivot at the knuckle, so the fingers curl in toward the palm.
+      const knuckle = new Group();
+      knuckle.position.set(x, -0.22 - (i === 1 ? 0.025 : 0), -0.015);
+      knuckle.rotation.set(0.28, 0, x * 1.1);
+      const finger = part(k.geo.finger, k.mat.shell);
+      finger.position.y = -0.055;
+      knuckle.add(finger);
+      hand.add(knuckle);
     }
-    const thumb = part(k.geo.thumb, k.mat.hand);
-    thumb.position.set(-side * 0.175, -0.02, 0.03);
-    thumb.rotation.z = -side * 0.95;
+    const thumb = part(k.geo.thumb, k.mat.shell);
+    thumb.position.set(-side * 0.2, -0.07, -0.045);
+    thumb.rotation.set(0.3, 0, -side * 0.8);
     hand.add(thumb);
     elbow.add(hand);
     return { shoulder, elbow, hand };
@@ -538,9 +737,9 @@ export function buildRiley(): RileyRig {
   skull.position.set(0, (HEAD_H / 2 - 0.02) * HEAD_SCALE, 0.08);
   head.add(skull);
 
-  const shell = part(k.geo.shell, k.mat.shell);
+  const shell = part(k.geo.shell, k.mat.headShell);
   shell.position.z = -0.2;
-  const sleeve = part(k.geo.sleeve, k.mat.shell);
+  const sleeve = part(k.geo.sleeve, k.mat.headShell);
   sleeve.position.z = 0.2;
   const frame = part(k.geo.frame, k.mat.frame);
   frame.position.z = 0.63;

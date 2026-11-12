@@ -6,7 +6,8 @@ import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 
 // Rendered once at build time (the site is fully static), like the books card
-// on dustinschau.com. Source images come from scripts/build-assets.sh.
+// on dustinschau.com. The cover comes from scripts/build-assets.sh; Riley is a
+// photo of the live WebGL model, taken by scripts/og-riley.mjs.
 export const prerender = true;
 
 const WIDTH = 1200;
@@ -133,12 +134,12 @@ export const GET: APIRoute = async () => {
         },
       }),
     ),
-    // Riley, peeking up from the bottom-right corner
+    // Riley, waving from the bottom-right corner
     h('img', {
       src: riley,
-      width: 256,
-      height: 341,
-      style: { position: 'absolute', right: 18, bottom: -104, width: 256, height: 341 },
+      width: 312,
+      height: 390,
+      style: { position: 'absolute', right: 6, bottom: -14, width: 312, height: 390 },
     }),
     h(
       'div',

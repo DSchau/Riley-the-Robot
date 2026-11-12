@@ -79,10 +79,10 @@ img wrap-up/03-have-fun.png 1400x have-fun
 img bio.jpg 1200x author
 magick "$ROOT/images/riley.png" -resize 512x512 -background none -gravity center -extent 512x512 "$SITE/public/riley-icon.png"
 
-# Sources for the build-time OG card (src/pages/og.png.ts); satori can't read webp.
+# Cover for the build-time OG card (src/pages/og.png.ts); satori can't read webp.
+# The card's Riley (riley.png) is a photo of the WebGL model: scripts/og-riley.mjs.
 OG="$SITE/src/assets/og"
 mkdir -p "$OG"
 magick "$ROOT/images/cover-front.png" -resize x900 -quality 86 "$OG/cover.jpg"
-magick "$ROOT/images/riley.png" -resize x520 "$OG/riley.png"
 
 du -sh "$OUT" "$ART"

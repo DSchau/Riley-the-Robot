@@ -1,7 +1,19 @@
 // Drives every Riley on the page from one WebGL context. Each placement owns
 // a plain 2D canvas; the shared renderer draws Riley offscreen and blits the
 // frame across, so adding another Riley costs a rig, not a GL context.
-import { DirectionalLight, HemisphereLight, NoToneMapping, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import {
+  CanvasTexture,
+  DirectionalLight,
+  EquirectangularReflectionMapping,
+  HemisphereLight,
+  NoToneMapping,
+  PerspectiveCamera,
+  PMREMGenerator,
+  Scene,
+  SRGBColorSpace,
+  WebGLRenderer,
+  type Texture,
+} from 'three';
 import { buildRiley, FACE, HIP_Y, type RileyRig } from './model';
 
 const REST = {
@@ -20,12 +32,14 @@ const REST = {
   lFwd: 0,
   lElbow: 0.12,
   lElbowFwd: 0.2,
-  lTwist: 0,
+  // Wrist turn: 0 hangs palm-in with the thumb forward, a quarter turn
+  // (PI / 2) faces the palm at the viewer, negative shows the back of the hand.
+  lTwist: -0.35,
   rRaise: 0.16,
   rFwd: 0,
   rElbow: 0.12,
   rElbowFwd: 0.2,
-  rTwist: 0,
+  rTwist: -0.35,
   eyeOpen: 1,
   eyeSize: 1,
   lookX: 0,
@@ -72,11 +86,11 @@ const MOODS = {
     lRaise: 0.3,
     lElbow: 1.6,
     lElbowFwd: 0,
-    lTwist: Math.PI - 0.6,
+    lTwist: Math.PI - 0.55,
     rRaise: 0.38,
     rElbow: 1.75,
     rElbowFwd: 0,
-    rTwist: Math.PI - 0.6,
+    rTwist: Math.PI - 0.55,
     question: 1,
     glow: 0.85,
   },
@@ -119,7 +133,7 @@ const EMOTES = {
     pose: {
       // Out to the side and up, so the hand clears that big head.
       lRaise: 2.05,
-      lTwist: Math.PI,
+      lTwist: Math.PI / 2,
       smile: 1,
       mouthOpen: 1,
       mouthWide: 1,
@@ -160,8 +174,8 @@ const EMOTES = {
       rFwd: 0,
       lElbowFwd: 0,
       rElbowFwd: 0,
-      lTwist: Math.PI,
-      rTwist: Math.PI,
+      lTwist: Math.PI / 2,
+      rTwist: Math.PI / 2,
       smile: 1,
       mouthOpen: 1.1,
       mouthWide: 1,
@@ -318,6 +332,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 let renderer: WebGLRenderer | undefined;
 let scene: Scene;
+let env: Texture | undefined;
 let camera: PerspectiveCamera;
 let failed = false;
 let raf = 0;
@@ -355,6 +370,7 @@ function setup() {
   scene.add(key, sky, fill, rim, new HemisphereLight(0xe3edf6, 0xd6ccc0, 0.8));
 
   camera = new PerspectiveCamera(FOV, 1, 0.1, 60);
+  env = skyReflection(renderer);
 
   renderer.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault());
 
@@ -398,6 +414,53 @@ function setup() {
     const name = (e as CustomEvent).detail;
     for (const inst of instances) if (inst.visible && inst.mood !== 'sleep') play(inst, name);
   });
+}
+
+/**
+ * What Riley's metal reflects: the cover's evening, painted as a tiny
+ * panorama. Cool sky overhead, a band of sunset on the horizon (brightest to
+ * the viewer's left), dark ground, and a soft window of light for highlights.
+ */
+function skyReflection(gl: WebGLRenderer) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const sky = ctx.createLinearGradient(0, 0, 0, 128);
+  sky.addColorStop(0, '#c9dcec');
+  sky.addColorStop(0.3, '#8fa9c4');
+  sky.addColorStop(0.47, '#aab4bf');
+  sky.addColorStop(0.53, '#4a4c52');
+  sky.addColorStop(1, '#23242a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 256, 128);
+  const glow = (x: number, y: number, rx: number, ry: number, color: string) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(rx, ry);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgb(0 0 0 / 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-1, -1, 2, 2);
+    ctx.restore();
+  };
+  // Straight ahead of Riley is x = 192; the viewer's left is toward x = 128.
+  for (const dx of [-256, 0, 256]) {
+    glow(150 + dx, 60, 46, 14, 'rgb(255 205 150 / 0.95)');
+    glow(40 + dx, 40, 34, 22, 'rgb(190 220 255 / 0.5)');
+    // Two soft windows, high in front: these are the streaks on arms and legs.
+    glow(172 + dx, 24, 15, 20, 'rgb(255 255 255 / 1)');
+    glow(214 + dx, 30, 9, 16, 'rgb(225 240 255 / 0.9)');
+  }
+  const tex = new CanvasTexture(c);
+  tex.colorSpace = SRGBColorSpace;
+  tex.mapping = EquirectangularReflectionMapping;
+  const pmrem = new PMREMGenerator(gl);
+  const out = pmrem.fromEquirectangular(tex).texture;
+  pmrem.dispose();
+  tex.dispose();
+  return out;
 }
 
 function play(inst: Instance, name: unknown) {
@@ -530,10 +593,10 @@ function update(inst: Instance, now: number, dt: number) {
 
   rig.armL.shoulder.rotation.set(-p.lFwd, 0, -p.lRaise - breath * 0.02);
   rig.armL.elbow.rotation.set(-p.lElbowFwd, 0, -p.lElbow);
-  rig.armL.hand.rotation.y = p.lTwist;
+  rig.armL.hand.rotation.y = -Math.PI / 2 - p.lTwist;
   rig.armR.shoulder.rotation.set(-p.rFwd, 0, p.rRaise + breath * 0.02);
   rig.armR.elbow.rotation.set(-p.rElbowFwd, 0, p.rElbow);
-  rig.armR.hand.rotation.y = -p.rTwist;
+  rig.armR.hand.rotation.y = Math.PI / 2 + p.rTwist;
 
   // The eyes are drawn on a screen, so looking around slides them across it.
   for (const eye of [rig.eyeL, rig.eyeR]) {
@@ -630,7 +693,7 @@ export function mount(el: HTMLElement): RileyHandle | undefined {
   el.dataset.rileyMounted = '';
 
   const mood = (el.dataset.mood && el.dataset.mood in MOODS ? el.dataset.mood : 'idle') as Mood;
-  const rig = buildRiley();
+  const rig = buildRiley(env);
   rig.root.visible = false;
   scene.add(rig.root);
 
