@@ -108,6 +108,34 @@ function roundedRect<T extends Path>(target: T, w: number, h: number, r: number)
   return target;
 }
 
+// A finger: a capsule hanging from its knuckle (at the origin) down -y, curled
+// toward the palm (-z) by `curl` radians along its length and narrowing by
+// `taper` towards the tip. One mesh, so the outline doesn't ring the joints.
+function digit(radius: number, length: number, curl: number, taper: number) {
+  const geo = new CapsuleGeometry(radius, length, 6, 14);
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) - length / 2;
+    const s = Math.min(length, Math.max(0, -y));
+    const a = (curl * s) / length;
+    const R = length / curl;
+    const k = 1 - (taper * s) / length;
+    // Offset from the bent spine, turned with it.
+    const dx = pos.getX(i) * k;
+    const dy = (y + s) * k;
+    const dz = pos.getZ(i) * k;
+    const c = Math.cos(a);
+    const n = Math.sin(a);
+    pos.setXYZ(i, dx, -R * n + dy * c - dz * n, -R * (1 - c) + dy * n + dz * c);
+    const ny = nrm.getY(i);
+    const nz = nrm.getZ(i);
+    nrm.setXYZ(i, nrm.getX(i), ny * c - nz * n, ny * n + nz * c);
+  }
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const c = document.createElement('canvas');
   c.width = w;
@@ -495,9 +523,13 @@ function getKit(env?: Texture): Kit {
       joint: new SphereGeometry(0.125, 18, 14),
       forearm: new CapsuleGeometry(0.16, 0.15, 10, 28),
       cuff: band(0.185, 0.12, 0.04),
-      palm: new RoundedBoxGeometry(0.37, 0.28, 0.21, 5, 0.1),
-      finger: new CapsuleGeometry(0.062, 0.07, 5, 12),
-      thumb: new CapsuleGeometry(0.066, 0.07, 5, 12),
+      // A flattened pill: soft all round, and its rounded end drops the outer
+      // knuckles a little below the middle one.
+      palm: new CapsuleGeometry(0.14, 0.03, 10, 28).scale(1.15, 1, 0.55),
+      fingerIndex: digit(0.058, 0.165, 0.5, 0.16),
+      fingerMiddle: digit(0.058, 0.18, 0.5, 0.16),
+      fingerLittle: digit(0.056, 0.145, 0.5, 0.16),
+      thumb: digit(0.066, 0.12, 0.5, 0.18),
       thigh: new CapsuleGeometry(0.2, 0.16, 10, 28),
       knee: new SphereGeometry(0.19, 28, 20),
       shin: new CapsuleGeometry(0.215, 0.18, 10, 28),
@@ -695,31 +727,31 @@ export function buildRiley(env?: Texture): RileyRig {
     elbow.add(part(k.geo.joint, k.mat.joint), forearm);
     shoulder.add(elbow);
 
-    // Big mitts in the same painted metal as the rest of Riley, as on the
-    // cover: a cuff at the wrist, a rounded palm, three fat fingers and a thumb.
-    // The palm faces -z here and the thumb sits on the body's side; stage.ts
-    // turns the wrist so the hands hang palm-in.
+    // Big gloved hands in the same painted metal as the rest of Riley, as on
+    // the cover: a cuff at the wrist, a soft palm, three long fingers lying
+    // together with a gentle curl, and a thumb off the side. The palm faces -z
+    // here and the thumb sits on the body's side; stage.ts turns the wrist so
+    // the hands hang palm-in.
     const hand = new Group();
     hand.position.y = -0.44;
-    hand.scale.setScalar(1.12);
+    hand.scale.setScalar(1.2);
     const cuff = part(k.geo.cuff, k.mat.shell);
     cuff.position.y = 0.07;
     const palm = part(k.geo.palm, k.mat.shell);
-    palm.position.y = -0.12;
+    palm.position.y = -0.1;
     hand.add(cuff, palm);
-    for (const [i, x] of [-0.118, 0, 0.118].entries()) {
-      // Pivot at the knuckle, so the fingers curl in toward the palm.
-      const knuckle = new Group();
-      knuckle.position.set(x, -0.22 - (i === 1 ? 0.025 : 0), -0.015);
-      knuckle.rotation.set(0.28, 0, x * 1.1);
-      const finger = part(k.geo.finger, k.mat.shell);
-      finger.position.y = -0.055;
-      knuckle.add(finger);
-      hand.add(knuckle);
-    }
+    // Index finger nearest the thumb, then middle, then little finger.
+    [k.geo.fingerIndex, k.geo.fingerMiddle, k.geo.fingerLittle].forEach((geo, i) => {
+      const x = -side * (1 - i) * 0.1;
+      const finger = part(geo, k.mat.shell);
+      // Knuckles follow the palm's rounded end; the fingers lie side by side.
+      finger.position.set(x, -0.19 + 3 * x * x, 0);
+      finger.rotation.set(0.12, 0, -x * 0.15);
+      hand.add(finger);
+    });
     const thumb = part(k.geo.thumb, k.mat.shell);
-    thumb.position.set(-side * 0.2, -0.07, -0.045);
-    thumb.rotation.set(0.3, 0, -side * 0.8);
+    thumb.position.set(-side * 0.11, -0.09, -0.025);
+    thumb.rotation.set(0.25, 0, -side * 0.85);
     hand.add(thumb);
     elbow.add(hand);
     return { shoulder, elbow, hand };
