@@ -156,9 +156,11 @@ const secrets = [
     <section id="riley" class="meet wrap">
       <div class="meet-art">
         <button class="riley-hello" aria-label="Say hello to Riley">
-          <!-- So many hellos! Riley isn't sure which one is yours. -->
+          <!-- So many hellos! Riley isn't sure which one is yours, so she keeps trying. -->
           <Riley mood="confused" tap="talk" fallback="/art/riley-wave.webp" />
-          <span class="bubble" aria-live="polite">Hello!</span>
+          <span class="bubble" aria-hidden="true">Hello!</span>
+          <!-- Only taps are announced; Riley's own tries would chatter. -->
+          <span class="sr-only" aria-live="polite"></span>
         </button>
       </div>
       <div class="meet-copy">
@@ -238,14 +240,22 @@ const secrets = [
   ];
   const hello = document.querySelector<HTMLButtonElement>('.riley-hello');
   const bubble = hello?.querySelector<HTMLElement>('.bubble');
+  const announce = hello?.querySelector<HTMLElement>('[aria-live]');
   let g = 0;
-  hello?.addEventListener('click', () => {
-    if (!bubble) return;
+  const say = (auto = false) => {
+    if (!hello || !bubble) return;
     g = (g + 1) % greetings.length;
     bubble.textContent = greetings[g];
+    if (!auto && announce) announce.textContent = greetings[g];
     hello.classList.remove('bounce');
     void hello.offsetWidth;
     hello.classList.add('bounce');
+  };
+  // The 3D Riley says when she speaks, so the bubble keeps time with her
+  // mouth; the illustration fallback can't, so a tap speaks for it.
+  hello?.addEventListener('riley:say', (e) => say((e as CustomEvent<{ auto?: boolean }>).detail?.auto));
+  hello?.addEventListener('click', () => {
+    if (!hello.querySelector('[data-riley-mounted]')) say();
   });
 
   // Hex secrets scramble into plain text.

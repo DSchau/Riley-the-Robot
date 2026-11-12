@@ -7,10 +7,12 @@
 //   el.dispatchEvent(new CustomEvent('riley:mood', { detail: 'happy' }))
 //   window.dispatchEvent(new CustomEvent('riley:emote', { detail: 'celebrate' }))  // every Riley on screen
 //
-// Emotes: wave, talk, celebrate, surprise, nod. Add `data-riley-cheer` to any
+// Emotes: wave, talk, celebrate, surprise, nod, plus the confused routine's
+// hello, ponder, scratch, shrug and lookAround. Riley fires `riley:say` when
+// she speaks (talk, hello). Add `data-riley-cheer` to any
 // element to make Riley beam while it's hovered or focused.
 interface Props {
-  /** Resting expression. A sleeping Riley wakes when approached. */
+  /** Resting expression. A sleeping Riley wakes when approached; a confused one keeps trying hellos on her own. */
   mood?: 'idle' | 'happy' | 'curious' | 'confused' | 'sleep';
   /** Emote to play when Riley (or the button around Riley) is tapped. */
   tap?: 'wave' | 'talk' | 'celebrate' | 'surprise' | 'nod';

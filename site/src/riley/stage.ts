@@ -82,15 +82,15 @@ const MOODS = {
     mouthWave: 1,
     lookX: 0.25,
     lookY: 0.3,
-    // A little shrug, palms tipped up.
-    lRaise: 0.3,
-    lElbow: 1.6,
-    lElbowFwd: 0,
-    lTwist: Math.PI - 0.55,
-    rRaise: 0.38,
-    rElbow: 1.75,
-    rElbowFwd: 0,
-    rTwist: Math.PI - 0.55,
+    // Hands loose and a little open, ready for the next try.
+    lRaise: 0.22,
+    lElbow: 0.35,
+    lElbowFwd: 0.45,
+    lTwist: 0.2,
+    rRaise: 0.22,
+    rElbow: 0.35,
+    rElbowFwd: 0.45,
+    rTwist: 0.2,
     question: 1,
     glow: 0.85,
   },
@@ -123,7 +123,14 @@ interface EmoteDef {
   tick?: (p: Pose, t: number, u: number) => void;
   /** Mood to settle into afterwards. */
   then?: Mood;
+  /** Riley speaks: fires `riley:say` on the element so the page can show the words; `detail.auto` is true when she spoke up on her own. */
+  say?: boolean;
 }
+
+// Right hand up beside the ear lens, fingers up, for a scratch.
+const EAR = { rRaise: 1.9, rFwd: -0.4, rElbow: 0.9, rElbowFwd: 0.1, rTwist: 2.4 } satisfies Partial<Pose>;
+// Further out and forward, cupped toward the viewer: "say that again?"
+const LISTEN = { rRaise: 2.2, rFwd: -0.4, rElbow: 0.3, rElbowFwd: 0.3, rTwist: 1.8 } satisfies Partial<Pose>;
 
 const hops = (t: number, period: number, count: number) => (t < period * count ? Math.abs(Math.sin((t / period) * Math.PI)) : 0);
 
@@ -153,6 +160,7 @@ const EMOTES = {
   },
   talk: {
     dur: 0.75,
+    say: true,
     tick: (p, t, u) => {
       p.mouthOpen = 0.3 + 0.7 * Math.abs(Math.sin(t * 13));
       p.mouthWide = 0.6;
@@ -230,7 +238,174 @@ const EMOTES = {
       p.headPitch += 0.2 * Math.sin(t * 14);
     },
   },
+  // The acts below are what a confused Riley gets up to on her own, trying to
+  // find the hello that's yours. Any of them can be played as an emote too.
+  hello: {
+    dur: 3.1,
+    say: true,
+    pose: {
+      lookX: 0,
+      lookY: 0,
+      browLY: 0.06,
+      browRY: 0.06,
+      browLTilt: 0,
+      browRTilt: 0,
+      mouthWave: 0,
+      smile: 0.9,
+      mouthWide: 0.75,
+      question: 0,
+      headRoll: -0.04,
+      torsoRoll: 0,
+      eyeSize: 1.06,
+      glow: 1.6,
+    },
+    tick: (p, t) => {
+      if (t < 1.3) {
+        // Brightly, with a little wave by the face.
+        p.mouthOpen = 0.25 + 0.75 * Math.abs(Math.sin(t * 11));
+        p.hop = 0.12 * hops(t - 0.1, 0.34, 1);
+        p.lRaise = 1.95;
+        p.lElbow = 0.55 + 0.35 * Math.sin(t * 13);
+        p.lElbowFwd = 0.1;
+        p.lTwist = Math.PI / 2;
+      } else {
+        // Then lean in, a hand cupped by the ear, and wait to hear back.
+        const k = Math.min(1, (t - 1.3) / 0.4);
+        Object.assign(p, LISTEN);
+        p.mouthOpen = 0;
+        p.mouthWide = 0.45;
+        p.smile = 0.55;
+        p.torsoPitch = 0.07 * k;
+        p.headPitch = REST.headPitch + 0.06 * k;
+        p.headRoll = -0.04 - 0.14 * k;
+        p.browLY = p.browRY = 0.08;
+        p.eyeSize = 1.12;
+        p.glow = 1.2;
+      }
+    },
+  },
+  // Hmm: fingers tapping the chin, eyes up in thought.
+  ponder: {
+    dur: 3.4,
+    pose: {
+      rRaise: 0,
+      rFwd: 1.1,
+      rElbow: -0.6,
+      rElbowFwd: 1.3,
+      rTwist: 1.6,
+      headRoll: 0.12,
+      headPitch: -0.04,
+      lookX: -0.55,
+      lookY: 0.6,
+      browLY: 0.06,
+      browLTilt: 0.05,
+      browRY: -0.04,
+      browRTilt: -0.45,
+      smile: -0.1,
+      mouthWave: 1,
+      mouthWide: 0.32,
+      mouthOpen: 0,
+      question: 1,
+    },
+    tick: (p, t) => {
+      if (t > 0.6 && t < 2.8) p.rElbowFwd += 0.07 * Math.sin(t * 15);
+      p.headRoll += 0.04 * Math.sin(t * 2.2);
+    },
+  },
+  // A sheepish scratch beside the ear lens.
+  scratch: {
+    dur: 2.6,
+    pose: {
+      ...EAR,
+      headRoll: -0.1,
+      lookX: -0.4,
+      lookY: 0.45,
+      eyeOpen: 0.85,
+      browLY: 0.07,
+      browLTilt: 0.3,
+      browRY: 0.02,
+      browRTilt: 0.3,
+      smile: 0.15,
+      mouthWave: 0.7,
+      mouthWide: 0.4,
+      mouthOpen: 0,
+      question: 1,
+    },
+    tick: (p, t) => {
+      if (t > 0.45 && t < 2.1) p.rElbow += 0.14 * Math.sin(t * 22);
+    },
+  },
+  // Palms up and a shake of the head: not that one, then?
+  shrug: {
+    dur: 2.3,
+    pose: {
+      lRaise: 0.32,
+      lElbow: 1.6,
+      lElbowFwd: 0,
+      lTwist: Math.PI - 0.55,
+      rRaise: 0.4,
+      rElbow: 1.75,
+      rElbowFwd: 0,
+      rTwist: Math.PI - 0.55,
+      browLY: 0.07,
+      browRY: 0.07,
+      browLTilt: 0.32,
+      browRTilt: 0.32,
+      smile: -0.15,
+      mouthWave: 1,
+      mouthWide: 0.4,
+      mouthOpen: 0,
+      lookX: 0,
+      lookY: 0.1,
+      question: 1,
+    },
+    tick: (p, t) => {
+      // Shoulders up on the shrug, then the head shake.
+      p.squash = t > 0.15 && t < 0.55 ? -0.035 : 0;
+      if (t > 0.5 && t < 1.6) p.headYaw += 0.2 * Math.sin((t - 0.5) * 11) * (1.6 - t);
+    },
+  },
+  // Who said that? A look one way, then the other.
+  lookAround: {
+    dur: 2.6,
+    pose: {
+      browLY: 0.07,
+      browRY: 0.07,
+      browLTilt: 0.15,
+      browRTilt: 0.15,
+      eyeSize: 1.08,
+      mouthWave: 0.5,
+      mouthOpen: 0.15,
+      mouthWide: 0.3,
+      smile: 0,
+      question: 1,
+    },
+    tick: (p, t) => {
+      const side = t < 0.25 ? 0 : t < 1.2 ? -1 : t < 2.2 ? 1 : 0;
+      p.headYaw = 0.42 * side;
+      p.torsoYaw = 0.1 * side;
+      p.lookX = 0.9 * side;
+      p.lookY = 0.1;
+      p.headRoll = 0.05 * side;
+    },
+  },
 } satisfies Record<string, EmoteDef>;
+
+// What Riley does on her own in a mood, between your taps: every other act is
+// the first, picked from the rest otherwise. Moods without one just idle.
+const ROUTINES: Partial<Record<Mood, Emote[]>> = {
+  confused: ['hello', 'ponder', 'shrug', 'scratch', 'lookAround'],
+};
+
+// Ambient motion layered on a mood, so Riley never freezes between acts.
+const AMBIENT: Partial<Record<Mood, (p: Pose, t: number) => void>> = {
+  confused: (p, t) => {
+    p.headRoll += 0.06 * Math.sin(t * 0.85);
+    p.headPitch += 0.025 * Math.sin(t * 0.55 + 1);
+    p.lElbow += 0.08 * Math.sin(t * 1.1);
+    p.rElbow += 0.08 * Math.sin(t * 1.1 + 2);
+  },
+};
 
 const WAKE: EmoteDef = { ...EMOTES.surprise, pose: { ...EMOTES.surprise.pose, attend: 1 }, then: 'idle' };
 
@@ -275,6 +450,10 @@ interface Instance {
   greet: boolean;
   inView: boolean;
   rect: DOMRect;
+  /** When the routine plays its next act, and how far along it is. */
+  nextAct: number;
+  act: number;
+  lastAct?: Emote;
 }
 
 const FRAME_H = 4.1;
@@ -463,10 +642,29 @@ function skyReflection(gl: WebGLRenderer) {
   return out;
 }
 
-function play(inst: Instance, name: unknown) {
+function play(inst: Instance, name: unknown, auto = false) {
   const def = typeof name === 'string' ? (EMOTES as Record<string, EmoteDef>)[name] : undefined;
   if (!def) return;
-  inst.emote = { def, start: performance.now() / 1000 };
+  const now = performance.now() / 1000;
+  inst.emote = { def, start: now };
+  // Give a tap its moment before the routine carries on.
+  if (!auto) inst.nextAct = now + def.dur + 2.5;
+  if (def.say) inst.el.dispatchEvent(new CustomEvent('riley:say', { bubbles: true, detail: { auto } }));
+}
+
+/** The next act in this mood's routine, if it has one and Riley's free. */
+function routine(inst: Instance, now: number) {
+  const acts = ROUTINES[inst.mood];
+  if (!acts || inst.emote || now < inst.nextAct) return;
+  let next = acts[0];
+  if (inst.act % 2) {
+    const others = acts.slice(1).filter((a) => a !== inst.lastAct);
+    next = others[Math.floor(Math.random() * others.length)] ?? acts[0];
+    inst.lastAct = next;
+  }
+  inst.act++;
+  play(inst, next, true);
+  inst.nextAct = now + EMOTES[next].dur + 0.5 + Math.random() * 0.9;
 }
 
 function wake(inst: Instance, now: number) {
@@ -538,8 +736,11 @@ function update(inst: Instance, now: number, dt: number) {
 
   if (inst.sleepy && inst.mood !== 'sleep' && !inst.emote && now > inst.awakeUntil) inst.mood = 'sleep';
 
+  if (!calm && !cheer) routine(inst, now);
+
   // Build this frame's target: rest pose, mood, then any emote on top.
   Object.assign(target, REST, MOODS[inst.mood]);
+  if (!calm) AMBIENT[inst.mood]?.(target, now + inst.seed);
   if (cheer && inst.mood !== 'sleep') Object.assign(target, MOODS.happy, { question: 0, mouthWave: 0 });
   if (inst.hover && inst.mood !== 'sleep') {
     target.browLY += 0.025;
@@ -719,6 +920,8 @@ export function mount(el: HTMLElement): RileyHandle | undefined {
     greet: 'greet' in el.dataset,
     inView: false,
     rect: el.getBoundingClientRect(),
+    nextAct: now + 1.2,
+    act: 0,
   };
   instances.push(inst);
 
